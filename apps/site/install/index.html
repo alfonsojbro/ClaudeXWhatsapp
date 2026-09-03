@@ -87,6 +87,19 @@
     <p class="lede">The installer is a small page plus one function. You put it on your own Cloudflare
       Pages so that your tokens go from your browser to Cloudflare and Hetzner, and nowhere else.</p>
 
+    <div class="cta">
+      <a class="btn btn-go" href="https://deploy.workers.cloudflare.com/?url=https://github.com/alfonsojbro/cxw-installer">Deploy the installer</a>
+    </div>
+    <p>That puts the installer on <strong>your</strong> Cloudflare account and opens it. The page is
+      already built, so there is nothing to compile and nothing to configure. Then fill it in: your
+      domain, the email that should be allowed in, the two tokens, and the address of your own
+      repository. A Tailscale key is optional and only adds direct SSH. Every field says what it is
+      used for and confirms that it is never stored.</p>
+
+    <h3>Or do it by hand</h3>
+    <p>The button is a convenience. If you would rather not hand Cloudflare a repository, or you want
+      to read the code first, these three steps reach the same place.</p>
+
     <div class="steps">
       <div class="step">
         <h3>Build it</h3>
@@ -115,12 +128,11 @@ pnpm --filter @cxw/installer build</code>
     </div>
 
     <div class="flag">
-      <h3>Two pieces are still landing</h3>
-      <p>The installer's own page is being finished right now. Its logic, its tests, its function and
-        its server providers are done and in the repository.</p>
-      <p>A one click button that puts the installer on your Cloudflare without the three steps above is
-        coming too, once the installer has its own public repository. The steps above are what works
-        today, and every account and token in the list is needed either way.</p>
+      <h3>Where the button sends you</h3>
+      <p>The button points at <a href="https://github.com/alfonsojbro/cxw-installer">cxw-installer</a>,
+        a public snapshot of the installer directory from the main repository. It exists because
+        Cloudflare clones the repository without credentials, and because a one click deploy cannot
+        build a package that lives inside a larger workspace. The snapshot ships already built.</p>
     </div>
   </div>
 </section>
