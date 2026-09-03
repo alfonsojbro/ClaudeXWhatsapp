@@ -3,6 +3,54 @@
 Phase 0 operations: create the box, bootstrap it, log Claude Code in, back up, restore.
 All commands assume the Mac has the Tailscale client and `hcloud` CLI installed (`brew install hcloud`).
 
+## 0. Box bootstrap (manual checklist)
+
+Every step below is run by hand, once, by Alfonso. CI does none of it and no script here runs it
+for you. Work top to bottom. Each item points at the section with the exact commands.
+
+1. [ ] Create the Hetzner **CX33** in `fsn1`, image Ubuntu 24.04, name `cxw`, with your SSH key. → §1
+2. [ ] Create the Hetzner **Cloud firewall** `cxw-fw`. Allow inbound `41641/udp` only, plus a
+   temporary `22/tcp` from your current IP. Apply it to the server. → §1
+3. [ ] Create the **Storage Box** (BX11) in Robot and enable SSH support. Note the `uXXXXXX` user
+   and the `uXXXXXX.your-storagebox.de` host. → §1
+4. [ ] Copy `deploy/hetzner` to the box over the public IP with `scp`. → §2
+5. [ ] Get a **Tailscale** auth key from the admin console, then run `bootstrap.sh` as root with
+   `TS_AUTHKEY=...` and `CXW_TIMEZONE=Europe/Prague`. Without the key the script prints a login
+   URL: open it, approve the machine, re-run. The script is idempotent. → §2
+6. [ ] Confirm Tailscale is up and **ufw** is correct: default deny incoming, SSH allowed only on
+   `tailscale0`, `41641/udp` open. Then confirm `ssh root@cxw` works over Tailscale. → §2
+7. [ ] Confirm the public SSH port is dead (`nc -vz <PUBLIC_IP> 22` must fail), then **delete the
+   temporary 22/tcp rule** from the Hetzner Cloud firewall. From here on Tailscale is the only
+   way in. → §2
+8. [ ] Confirm the runtime: `node -v` is 22.x, `pnpm -v` is 10.x, `claude --version` prints. The
+   bootstrap script installs all three. → §7
+9. [ ] Generate the **deploy key** as user `cxw` at `/home/cxw/.ssh/cxw_deploy` (0600, owned by
+   `cxw`), then register the public half at GitHub → repo → Settings → Deploy keys with **Allow
+   write access** ticked. The box pushes vault commits, so read-only will not do. → §3
+10. [ ] Clone the repo to `/srv/cxw/repo` **as user `cxw`** over SSH with that key, set
+    `core.sshCommand` on the clone, and run `pnpm install --frozen-lockfile`. → §3
+11. [ ] Fill in `/srv/cxw/cxw.env` and `/srv/cxw/restic.env`. Both are root-owned and 0600.
+    Bootstrap left placeholders. Nothing starts until the placeholders are gone. → §3
+12. [ ] Re-run `bootstrap.sh` from the clone to install the systemd units and start the services
+    and timers. → §3
+13. [ ] Log **Claude Code** in as user `cxw` with the Max subscription device flow, then generate a
+    long-lived token with `claude setup-token` and paste it into `/srv/cxw/cxw.env` as
+    `CLAUDE_CODE_OAUTH_TOKEN`. Headless services need the token, not the interactive session.
+    Fallback is `ANTHROPIC_API_KEY` with a monthly spend limit set in the Console. → §4
+14. [ ] Verify auth: `claude -p "hi"` as `cxw` must answer in one line. → §4
+15. [ ] Create the **Storage Box SSH key** at `/root/.ssh/storagebox_ed25519`, register the public
+    half in Robot → Storage Box → SSH keys, add the host block from `restic.env.example` to
+    `/root/.ssh/config`, and prove it with `ssh -p 23 storagebox mkdir -p cxw`. → §5
+16. [ ] Run the first **restic** backup by hand and confirm `cxw-backup.timer` is active. → §5
+17. [ ] **Test the restore.** Restore `latest` into a scratch folder and diff it against live data.
+    A backup nobody has restored is not a backup. → §5
+18. [ ] Run `monitor.sh` once and read `/srv/cxw/state/monitor.status`. → §6
+19. [ ] Walk §7 and tick every acceptance box.
+
+Two notes on keys. The deploy key sits under `/home/cxw/.ssh/`, not `/root/.ssh/`, because git
+runs as the service user `cxw` and that user must read it. The Storage Box key is the opposite:
+restic runs as root, so it stays at `/root/.ssh/`. Never put either key in the repo.
+
 ## 1. Create the Hetzner box (CX33, fsn1)
 
 Console: Cloud → project → Servers → Add server. Location **Falkenstein (fsn1)**, image **Ubuntu 24.04**,
@@ -64,8 +112,17 @@ Remove the temporary 22/tcp rule from the Hetzner Cloud firewall now.
 
 ## 3. Clone the repo and install
 
+The box uses a read-write **deploy key** scoped to this one private repo. No personal GitHub token on the box.
+
 ```bash
-ssh root@cxw 'sudo -u cxw -H git clone https://github.com/<you>/ClaudeXWhatsapp.git /srv/cxw/repo && cd /srv/cxw/repo && sudo -u cxw -H pnpm install --frozen-lockfile'
+ssh root@cxw 'sudo -u cxw -H ssh-keygen -t ed25519 -N "" -f /home/cxw/.ssh/cxw_deploy -C cxw-deploy && cat /home/cxw/.ssh/cxw_deploy.pub'
+```
+
+Paste the public key at GitHub → repo → Settings → Deploy keys, tick "Allow write access" (the box pushes vault commits).
+Then clone as `cxw`:
+
+```bash
+ssh root@cxw 'sudo -u cxw -H env GIT_SSH_COMMAND="ssh -i /home/cxw/.ssh/cxw_deploy -o IdentitiesOnly=yes" git clone git@github.com:<you>/ClaudeXWhatsapp.git /srv/cxw/repo && sudo -u cxw -H git -C /srv/cxw/repo config core.sshCommand "ssh -i /home/cxw/.ssh/cxw_deploy -o IdentitiesOnly=yes" && sudo -u cxw -H pnpm --dir /srv/cxw/repo install --frozen-lockfile'
 ```
 
 Fill in the two env files (root-owned, 0600, placeholders were created by bootstrap):
@@ -164,10 +221,10 @@ ssh root@cxw 'journalctl -u cxw-brain -f'
 ssh root@cxw '/srv/cxw/repo/deploy/hetzner/monitor.sh; cat /srv/cxw/state/monitor.status'
 ```
 
-Update the code:
+Update the code (pull `--ff-only`, install, restart):
 
 ```bash
-ssh root@cxw 'cd /srv/cxw/repo && sudo -u cxw -H git pull --ff-only && sudo -u cxw -H pnpm install --frozen-lockfile && systemctl restart cxw-bridge cxw-brain cxw-scheduler'
+ssh root@cxw '/srv/cxw/repo/deploy/hetzner/update.sh'
 ```
 
 ## 7. Phase 0 acceptance checklist

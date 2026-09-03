@@ -15,7 +15,10 @@ MODE="${2:-}"
 [[ $EUID -eq 0 ]] || { echo "run as root" >&2; exit 1; }
 if [[ -z "${RESTIC_REPOSITORY:-}" ]]; then
   [[ -r "$ENV_FILE" ]] || { echo "missing $ENV_FILE" >&2; exit 1; }
-  set -a; . "$ENV_FILE"; set +a
+  set -a
+  # shellcheck source=/dev/null
+  . "$ENV_FILE"
+  set +a
 fi
 
 if [[ "$SNAP" == "--list" ]]; then

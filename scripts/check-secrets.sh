@@ -16,7 +16,7 @@ if [[ "${CXW_ALLOW_SECRETS:-0}" == "1" ]]; then
 fi
 
 # Files that must never be committed, whatever they contain.
-forbidden_paths='(^|/)(\.env|\.env\.[^/]+|[^/]*\.env|google\.env|credentials\.json|token\.json|creds\.json)$|(^|/)session/|(^|/)\.obsidian/workspace.*\.json$|(^|/)id_(rsa|ed25519)$'
+forbidden_paths='(^|/)(\.env|\.env\.[^/]+|[^/]*\.env|google\.env|credentials\.json|token\.json|creds\.json)$|(^|/)session/|(^|/)(creds|app-state-sync-[^/]*|pre-key-[^/]*|sender-key-[^/]*|session-[^/]*)\.json$|(^|/)\.obsidian/workspace.*\.json$|(^|/)id_(rsa|ed25519)$'
 allowed_paths='\.env\.example$'
 
 # Content patterns for well-known credential shapes.
@@ -32,10 +32,12 @@ patterns=(
   'xox[baprs]-[0-9A-Za-z-]{10,}'                     # Slack tokens
   'tskey-[a-z]+-[A-Za-z0-9]{10,}'                    # Tailscale auth key
   '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----'
+  '[0-9]{10,15}@(s\.whatsapp\.net|lid)'      # real WhatsApp JID (phone number)
+  '\+[1-9][0-9]{9,14}\b'                       # E.164 phone number
   '(RESTIC_PASSWORD|ANTHROPIC_API_KEY|OPENAI_API_KEY|CLAUDE_CODE_OAUTH_TOKEN|TS_AUTHKEY)[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9_./+-]{12,}'
 )
 # Placeholder values that are fine to commit.
-placeholder='(changeme|CHANGEME|REPLACE_ME|<[^>]+>|xxxx|your[-_]|\.\.\.)'
+placeholder='(changeme|CHANGEME|REPLACE_ME|<[^>]+>|xxxx|your[-_]|e\.g\.|example|\.\.\.)'
 
 if [[ "$mode" == "all" ]]; then
   files=$(git ls-files)
