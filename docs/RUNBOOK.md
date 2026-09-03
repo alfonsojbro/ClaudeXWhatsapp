@@ -27,29 +27,38 @@ for you. Work top to bottom. Each item points at the section with the exact comm
 9. [ ] Generate the **deploy key** as user `cxw` at `/home/cxw/.ssh/cxw_deploy` (0600, owned by
    `cxw`), then register the public half at GitHub → repo → Settings → Deploy keys with **Allow
    write access** ticked. The box pushes vault commits, so read-only will not do. → §3
-10. [ ] Clone the repo to `/srv/cxw/repo` **as user `cxw`** over SSH with that key, set
+10. [ ] Add github.com to `/home/cxw/.ssh/known_hosts` with `ssh-keyscan`. Skip this and the clone
+    fails on host key verification, because a non-interactive `ssh` has no terminal to ask on. → §3
+11. [ ] Clone the repo to `/srv/cxw/repo` **as user `cxw`** over SSH with that key, set
     `core.sshCommand` on the clone, and run `pnpm install --frozen-lockfile`. → §3
-11. [ ] Fill in `/srv/cxw/cxw.env` and `/srv/cxw/restic.env`. Both are root-owned and 0600.
-    Bootstrap left placeholders. Nothing starts until the placeholders are gone. → §3
-12. [ ] Re-run `bootstrap.sh` from the clone to install the systemd units and start the services
-    and timers. → §3
-13. [ ] Log **Claude Code** in as user `cxw` with the Max subscription device flow, then generate a
-    long-lived token with `claude setup-token` and paste it into `/srv/cxw/cxw.env` as
+12. [ ] Fill in `/srv/cxw/cxw.env` and `/srv/cxw/restic.env`. Both are root-owned and 0600.
+    Bootstrap left placeholders. Use `ssh -t`, since an editor needs a terminal. → §3
+13. [ ] Log **Claude Code** in as user `cxw` with the Max subscription device flow (`ssh -t`), then
+    generate a long-lived token with `claude setup-token` and paste it into `/srv/cxw/cxw.env` as
     `CLAUDE_CODE_OAUTH_TOKEN`. Headless services need the token, not the interactive session.
     Fallback is `ANTHROPIC_API_KEY` with a monthly spend limit set in the Console. → §4
 14. [ ] Verify auth: `claude -p "hi"` as `cxw` must answer in one line. → §4
-15. [ ] Create the **Storage Box SSH key** at `/root/.ssh/storagebox_ed25519`, register the public
+15. [ ] **Only now** re-run `bootstrap.sh` from the clone to install the systemd units and start the
+    services and timers. Starting them earlier, with a placeholder token, crash-loops `cxw-brain`
+    into `failed` and then needs `systemctl reset-failed`. → §4
+16. [ ] Create the **Storage Box SSH key** at `/root/.ssh/storagebox_ed25519`, register the public
     half in Robot → Storage Box → SSH keys, add the host block from `restic.env.example` to
-    `/root/.ssh/config`, and prove it with `ssh -p 23 storagebox mkdir -p cxw`. → §5
-16. [ ] Run the first **restic** backup by hand and confirm `cxw-backup.timer` is active. → §5
-17. [ ] **Test the restore.** Restore `latest` into a scratch folder and diff it against live data.
+    `/root/.ssh/config`, add the box to `/root/.ssh/known_hosts`, and prove it with
+    `ssh -p 23 storagebox mkdir -p cxw`. → §5
+17. [ ] Run the first **restic** backup by hand and confirm `cxw-backup.timer` is active. → §5
+18. [ ] **Test the restore.** Restore `latest` into a scratch folder and diff it against live data.
     A backup nobody has restored is not a backup. → §5
-18. [ ] Run `monitor.sh` once and read `/srv/cxw/state/monitor.status`. → §6
-19. [ ] Walk §7 and tick every acceptance box.
+19. [ ] Run `monitor.sh` once and read `/srv/cxw/state/monitor.status`. → §6
+20. [ ] Walk §7 and tick every acceptance box.
 
 Two notes on keys. The deploy key sits under `/home/cxw/.ssh/`, not `/root/.ssh/`, because git
-runs as the service user `cxw` and that user must read it. The Storage Box key is the opposite:
-restic runs as root, so it stays at `/root/.ssh/`. Never put either key in the repo.
+runs as the service user `cxw` and that user must read it. The plan doc §3.7 still says
+`/root/.ssh/cxw_deploy`; that path cannot work for a repo cloned and pushed by `cxw`. The Storage
+Box key is the opposite: restic runs as root, so it stays at `/root/.ssh/`. Never put either key
+in the repo.
+
+Anything interactive needs `ssh -t`. That covers the editor in step 12 and both Claude Code login
+commands in step 13. Without a terminal they fail in confusing ways.
 
 ## 1. Create the Hetzner box (CX33, fsn1)
 
@@ -119,6 +128,14 @@ ssh root@cxw 'sudo -u cxw -H ssh-keygen -t ed25519 -N "" -f /home/cxw/.ssh/cxw_d
 ```
 
 Paste the public key at GitHub → repo → Settings → Deploy keys, tick "Allow write access" (the box pushes vault commits).
+
+Trust github.com first. Without this the clone dies with `Host key verification failed`: `ssh host 'cmd'`
+gives no terminal, so ssh cannot ask the operator to confirm the fingerprint.
+
+```bash
+ssh root@cxw 'sudo -u cxw -H sh -c "ssh-keyscan github.com >> /home/cxw/.ssh/known_hosts"'
+```
+
 Then clone as `cxw`:
 
 ```bash
@@ -128,21 +145,19 @@ ssh root@cxw 'sudo -u cxw -H env GIT_SSH_COMMAND="ssh -i /home/cxw/.ssh/cxw_depl
 Fill in the two env files (root-owned, 0600, placeholders were created by bootstrap):
 
 ```bash
-ssh root@cxw 'nano /srv/cxw/cxw.env; nano /srv/cxw/restic.env'
+ssh -t root@cxw 'nano /srv/cxw/cxw.env; nano /srv/cxw/restic.env'
 ```
 
-Re-run bootstrap from the clone to install the units and start services and timers:
-
-```bash
-ssh root@cxw 'bash /srv/cxw/repo/deploy/hetzner/bootstrap.sh'
-```
+Leave `CLAUDE_CODE_OAUTH_TOKEN` for now; §4 generates it. **Do not re-run bootstrap yet.**
+Bootstrap starts `cxw-brain`, and a brain started with a placeholder token crash-loops until it
+hits `StartLimitBurst` and latches into `failed`. Finish §4 first.
 
 ## 4. Log Claude Code in (subscription first, API key fallback)
 
 Claude Code runs as user `cxw`. Log in with the Max subscription using the device flow:
 
 ```bash
-ssh root@cxw 'sudo -u cxw -H claude auth login'
+ssh -t root@cxw 'sudo -u cxw -H claude auth login'
 ```
 
 Open the printed URL on the Mac, approve, paste the code back. Check:
@@ -155,7 +170,7 @@ For headless services a long-lived token is more robust than the interactive log
 and paste it into `/srv/cxw/cxw.env` as `CLAUDE_CODE_OAUTH_TOKEN`:
 
 ```bash
-ssh root@cxw 'sudo -u cxw -H claude setup-token'
+ssh -t root@cxw 'sudo -u cxw -H claude setup-token'
 ```
 
 Fallback: set `ANTHROPIC_API_KEY` in `/srv/cxw/cxw.env` and leave `CLAUDE_CODE_OAUTH_TOKEN` empty.
@@ -168,6 +183,21 @@ ssh root@cxw 'sudo -u cxw -H claude -p "hi"'
 
 A one-line reply means auth works. `Invalid API key` or `Not logged in` means step 4 failed.
 
+Now that `/srv/cxw/cxw.env` is complete, re-run bootstrap from the clone to install the systemd
+units and start the services and timers:
+
+```bash
+ssh root@cxw 'bash /srv/cxw/repo/deploy/hetzner/bootstrap.sh'
+```
+
+If a unit already latched into `failed` from an earlier run with placeholder values, clear the
+counter before restarting it. A plain `systemctl restart` answers "start request repeated too
+quickly" and does nothing:
+
+```bash
+ssh root@cxw 'systemctl reset-failed cxw-brain cxw-bridge cxw-scheduler && systemctl restart cxw-brain cxw-bridge cxw-scheduler'
+```
+
 ## 5. Backups: restic to the Storage Box
 
 On the box as root, create a key for the Storage Box and register it:
@@ -178,6 +208,12 @@ ssh root@cxw 'ssh-keygen -t ed25519 -N "" -f /root/.ssh/storagebox_ed25519 && ca
 
 Paste the public key into Robot → Storage Box → SSH keys (or `ssh-copy-id -p 23 -i ... uXXXXXX@uXXXXXX.your-storagebox.de`).
 Add the host entry from `deploy/hetzner/restic.env.example` to `/root/.ssh/config`, then test:
+
+The Storage Box host key has the same no-terminal problem as github.com, so accept it explicitly:
+
+```bash
+ssh root@cxw 'ssh-keyscan -p 23 uXXXXXX.your-storagebox.de >> /root/.ssh/known_hosts'
+```
 
 ```bash
 ssh root@cxw 'ssh -p 23 storagebox mkdir -p cxw && echo storagebox OK'

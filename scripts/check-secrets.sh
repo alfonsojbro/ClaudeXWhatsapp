@@ -31,10 +31,15 @@ patterns=(
   'gh[pousr]_[A-Za-z0-9]{30,}'                       # GitHub tokens
   'xox[baprs]-[0-9A-Za-z-]{10,}'                     # Slack tokens
   'tskey-[a-z]+-[A-Za-z0-9]{10,}'                    # Tailscale auth key
+  'GOCSPX-[A-Za-z0-9_-]{20,}'                        # Google OAuth client secret
   '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----'
-  '[0-9]{10,15}@(s\.whatsapp\.net|lid)'      # real WhatsApp JID (phone number)
-  '\+[1-9][0-9]{9,14}\b'                       # E.164 phone number
+  # Baileys writes the owner JID with an optional device suffix (:N before the @).
+  '[0-9]{10,15}(:[0-9]{1,3})?@(s\.whatsapp\.net|lid)'  # real WhatsApp JID
+  '"(noiseKey|signedIdentityKey|signedPreKey|advSecretKey|registrationId)"'  # Baileys creds.json
+  '\+[1-9][0-9]{9,14}\b'                             # E.164 phone number
   '(RESTIC_PASSWORD|ANTHROPIC_API_KEY|OPENAI_API_KEY|CLAUDE_CODE_OAUTH_TOKEN|TS_AUTHKEY)[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9_./+-]{12,}'
+  # Catch-all for named credentials the list above does not know about.
+  '[A-Z][A-Z0-9_]*(SECRET|TOKEN|PASSWORD|PASSWD|APIKEY|API_KEY)[A-Z0-9_]*[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9_./+=-]{16,}'
 )
 # Placeholder values that are fine to commit.
 placeholder='(changeme|CHANGEME|REPLACE_ME|<[^>]+>|xxxx|your[-_]|e\.g\.|example|\.\.\.)'
@@ -60,12 +65,31 @@ while IFS= read -r f; do
   if [[ $(content "$f" | LC_ALL=C tr -dc '\000' | wc -c) -gt 0 ]]; then continue; fi
   for p in "${patterns[@]}"; do
     # -e is required: some patterns start with "-" and would be read as options.
-    hits=$(content "$f" | grep -nE -e "$p" | grep -vE -e "$placeholder" || true)
-    if [[ -n "$hits" ]]; then
-      echo "check-secrets: possible secret in $f:" >&2
-      echo "$hits" | sed 's/^/    /' | cut -c1-160 >&2
+    # -o prints only the matched text, so the placeholder test below applies to
+    # the credential itself and not to the whole line. Matching on the line let
+    # one unrelated word ("example", "...") excuse a real secret beside it.
+    set +e
+    hits=$(content "$f" | grep -noE -e "$p")
+    rc=$?
+    set -e
+    # grep exits 0 on a match and 1 on none. Anything higher is a broken
+    # pattern, which would otherwise disable this check while CI stayed green.
+    if [[ $rc -gt 1 ]]; then
+      echo "check-secrets: grep failed (rc=$rc) on pattern: $p" >&2
       status=1
+      continue
     fi
+    [[ $rc -eq 0 ]] || continue
+    while IFS= read -r hit; do
+      [[ -z "$hit" ]] && continue
+      lineno=${hit%%:*}
+      match=${hit#*:}
+      [[ "$match" =~ $placeholder ]] && continue
+      # Never echo the match: on a CI failure that would write the credential
+      # into a retained build log.
+      echo "check-secrets: possible secret at $f:$lineno matching /$p/" >&2
+      status=1
+    done <<< "$hits"
   done
 done <<< "$files"
 
