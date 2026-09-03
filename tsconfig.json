@@ -21,6 +21,7 @@
     "mcp/**/*.ts",
     "apps/**/*.ts",
     "tests/**/*.ts",
+    "scripts/**/*.ts",
     "vitest.config.ts"
   ]
 }
