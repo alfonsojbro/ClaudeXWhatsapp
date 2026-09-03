@@ -31,11 +31,11 @@ patterns=(
   'gh[pousr]_[A-Za-z0-9]{30,}'                       # GitHub tokens
   'xox[baprs]-[0-9A-Za-z-]{10,}'                     # Slack tokens
   'tskey-[a-z]+-[A-Za-z0-9]{10,}'                    # Tailscale auth key
-  '-----BEGIN (RSA |EC |OPENSSH |DSA |)PRIVATE KEY-----'
+  '-----BEGIN (RSA |EC |OPENSSH |DSA )?PRIVATE KEY-----'
   '(RESTIC_PASSWORD|ANTHROPIC_API_KEY|OPENAI_API_KEY|CLAUDE_CODE_OAUTH_TOKEN|TS_AUTHKEY)[[:space:]]*[=:][[:space:]]*["'"'"']?[A-Za-z0-9_./+-]{12,}'
 )
 # Placeholder values that are fine to commit.
-placeholder='(changeme|CHANGEME|REPLACE_ME|<[^>]+>|xxxx|your[-_])'
+placeholder='(changeme|CHANGEME|REPLACE_ME|<[^>]+>|xxxx|your[-_]|\.\.\.)'
 
 if [[ "$mode" == "all" ]]; then
   files=$(git ls-files)
@@ -53,10 +53,12 @@ while IFS= read -r f; do
     status=1
     continue
   fi
-  # skip binaries
-  if content "$f" | LC_ALL=C grep -q $'\x00' 2>/dev/null; then continue; fi
+  # Skip binaries. bash cannot hold a NUL in a variable, so match on the byte
+  # count of NULs kept by tr instead of passing NUL to grep as a pattern.
+  if [[ $(content "$f" | LC_ALL=C tr -dc '\000' | wc -c) -gt 0 ]]; then continue; fi
   for p in "${patterns[@]}"; do
-    hits=$(content "$f" | grep -nE "$p" | grep -vE "$placeholder" || true)
+    # -e is required: some patterns start with "-" and would be read as options.
+    hits=$(content "$f" | grep -nE -e "$p" | grep -vE -e "$placeholder" || true)
     if [[ -n "$hits" ]]; then
       echo "check-secrets: possible secret in $f:" >&2
       echo "$hits" | sed 's/^/    /' | cut -c1-160 >&2
