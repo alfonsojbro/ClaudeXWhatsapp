@@ -111,3 +111,33 @@ named assertion, and passes again once restored.
   `/home/cxw/.ssh/cxw_deploy`. Alfonso decides which document changes.
 - `.prettierignore` now covers every markdown file in the repo, not just prose docs.
 - No package declares `vitest` as a devDependency; they rely on the root `.bin`.
+
+## Rebase onto main (2026-09-03)
+
+While this branch was in review, four commits landed on `main` that had independently found and
+fixed three of the same defects: `f2fb3fc` "make content patterns actually run", `5d763b8` "give
+every workspace package its own vitest config", `068e5cd`, `54b8c97`. `main` was no longer an
+ancestor, so the planned `--ff-only` merge would have been refused.
+
+Rebased this branch onto `main` rather than starting anything new. Result:
+
+- The seven `vitest.config.ts` files are byte-identical on both sides. No conflict.
+- `package.json` conflicted. Took main's `"test": "pnpm -r test && pnpm run test:root"`, which is
+  cleaner than this branch's inline form.
+- `scripts/check-secrets.sh` conflicted. Took this branch's version: it contains all three of
+  main's fixes plus everything from review rounds 2 and 3. Verified after the rebase that the
+  temp-file read, the allow marker, the binary notice, the grep status check, and the Google,
+  Baileys and catch-all patterns all survived.
+- Main also dropped `--passWithNoTests` from each package's test script. That is kept, and it
+  complements the wiring guard: a package with a broken include now fails twice over.
+
+`main` is an ancestor again, so `git merge --ff-only phase-0-foundation` works.
+
+## Merge order
+
+1. `phase-0-foundation` into `main` with `git merge --ff-only`, after Alfonso approves.
+2. Every other phase branch rebases onto the new `main`.
+
+`phase-6-memory` needs care: it also edits `.gitignore`, `package.json`, `tsconfig.json` and
+`vitest.config.ts`, so its rebase will conflict on those four files. The rest of its work
+(`packages/shared/src/{frontmatter,llm,slug,time}.ts`) is disjoint.
