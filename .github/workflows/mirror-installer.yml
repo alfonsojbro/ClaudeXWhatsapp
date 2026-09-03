@@ -6,12 +6,12 @@
 # one-way door because the history goes with it. The mirror is reversible: delete one
 # repository.
 #
-# INERT UNTIL SET UP. The workflow checks for the MIRROR_TOKEN secret and exits cleanly
+# INERT UNTIL SET UP. The workflow checks for the MIRROR_INSTALLER_TOKEN secret and exits cleanly
 # with a message when it is absent, so it never fails a build. The one-time steps are:
 #   1. Create the public repository alfonsojbro/cxw-installer (empty, no README).
 #   2. Create a fine-grained personal access token with Contents: write on that
 #      repository only.
-#   3. Add it to this repository as the Actions secret MIRROR_TOKEN.
+#   3. Add it to this repository as the Actions secret MIRROR_INSTALLER_TOKEN.
 # Nothing in this commit creates the repository or the token.
 
 name: mirror-installer
@@ -42,10 +42,10 @@ jobs:
       - name: Check whether the mirror is set up
         id: gate
         env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          MIRROR_INSTALLER_TOKEN: ${{ secrets.MIRROR_INSTALLER_TOKEN }}
         run: |
-          if [ -z "${MIRROR_TOKEN:-}" ]; then
-            echo "MIRROR_TOKEN is not set, so the public mirror is not configured yet."
+          if [ -z "${MIRROR_INSTALLER_TOKEN:-}" ]; then
+            echo "MIRROR_INSTALLER_TOKEN is not set, so the public mirror is not configured yet."
             echo "This is expected until the public repository and its token exist."
             echo "See the header of this workflow for the one-time steps."
             echo "ready=false" >> "$GITHUB_OUTPUT"
@@ -72,7 +72,7 @@ jobs:
       - name: Push the subtree to the public repository
         if: steps.gate.outputs.ready == 'true'
         env:
-          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+          MIRROR_INSTALLER_TOKEN: ${{ secrets.MIRROR_INSTALLER_TOKEN }}
         run: |
           set -euo pipefail
           cd "$RUNNER_TEMP/mirror"
@@ -81,6 +81,6 @@ jobs:
           git config user.email "noreply@users.noreply.github.com"
           git add -A
           git commit -q -m "mirror: apps/installer at ${GITHUB_SHA}"
-          git remote add origin "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
+          git remote add origin "https://x-access-token:${MIRROR_INSTALLER_TOKEN}@github.com/${MIRROR_REPO}.git"
           # The mirror is a snapshot, not a history: force-push one commit.
           git push --force origin "$MIRROR_BRANCH"

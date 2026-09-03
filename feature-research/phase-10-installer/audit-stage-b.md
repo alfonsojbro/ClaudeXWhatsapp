@@ -183,7 +183,7 @@ Two things in that output are **not mine and were already on the branch**:
 - **The `"test:root"` duplicate key in the root `package.json`** is left alone; the brief forbids
   editing root config. Worth a one-line fix by whoever owns it.
 - **No real Cloudflare, Hetzner or Google resource was created.** Every network call is an injected
-  `fetchImpl` and every test mocks it. `docs/RUNBOOK.md` §8 is the only place real ones are made, and
+  `fetchImpl` and every test mocks it. `docs/RUNBOOK.md` §19 is the only place real ones are made, and
   it says so at the top of the section.
 - **No git state was changed.** No `add`, `commit`, `checkout` or `stash` was run.
 
@@ -203,7 +203,7 @@ Two things in that output are **not mine and were already on the branch**:
 4. **The device-flow parser is deliberately loose.** `parseDeviceFlow` finds the first https URL and a
    short alphanumeric code. It is tested against a realistic shape and against a URL-only output, but
    `claude setup-token`'s real output was not available to test against on this branch. Worth one manual
-   check during RUNBOOK §8.4 step 4.
+   check during RUNBOOK §19.4 step 4.
 5. **`guardrails.test.ts` reasons about source text, not an AST.** Its write-path assertion is
    "no writing module contains an absolute path literal, and every write target is a bare identifier",
    which is a proxy for "the target flows from an injected dep". A sufficiently creative future edit

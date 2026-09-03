@@ -1,0 +1,39 @@
+# Fix plan 1 — after review-1 (verdict: fix-then-ship)
+
+Source: `feature-research/phase-7-ops/review-1.md` (B1–B5, S1–S9) plus the security pass (media-path containment) and the docs audit (`google.env` never created; `ops.sqlite` integrity check on a fresh box). Same rules as `plan.md`: worktree only, no git, no live box, Node 22 via nvm, prettier/eslint/strict TS.
+
+## Files touched — Implementer A (apps/ops only)
+
+- `apps/ops/src/config.ts` — secrets equal to `CHANGEME` or empty string are treated as unset: `BRIDGE_TOKEN`, `SMTP_PASS`, `SMTP_USER`, `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, `GOOGLE_CLIENT_ID/SECRET/REFRESH_TOKEN`, `CLAUDE_CODE_OAUTH_TOKEN`, `ANTHROPIC_API_KEY`. (B5)
+- `apps/ops/src/logger.ts` — pino writes to **stderr** (`pino.destination(2)`) so `health --json` stdout stays pure JSON. (S2)
+- `apps/ops/src/db.ts` — `PRAGMA busy_timeout = 5000` on every open (bridge db and ops db). (S6)
+- `apps/ops/src/retention.ts` —
+  - (B2) when `ownerForever` is true and the owner list is empty, **refuse**: throw `OpsError('refusing to purge: owner list is empty (check CXW_OWNERS_FILE)')`; CLI prints the message to stderr and exits 2; the WhatsApp `purge` command returns that text. Dry-run refuses too.
+  - (security) `resolveMediaPath()` must return `null` for any path whose `path.resolve` result is not under `path.resolve(cfg.mediaDir) + sep` **or** under `path.resolve(cfg.dataDir) + sep`; skipped rows are counted in a new `skipped` field of the purge result and logged at warn with the count only (never the path). Absolute paths are allowed only if they pass the same containment test.
+  - (S5) after the orphan walk unlinks a file, `UPDATE messages SET media_path = NULL WHERE media_path = ?` for both the absolute and the `mediaDir`-relative spelling; dry-run writes **no** `last-purge.json`.
+- `apps/ops/src/costs.ts` — (S1) split cap checking from owner notification: `checkCap()` keeps computing state and writing the `cost-paused` flag (idempotent) but **never** writes the warn marker and never suppresses text; it returns `{ pct, total, cap, level: 'ok'|'warn'|'paused', text }`. New `notifyCap(deliver)`: writes `cost-warned-<YYYY-MM>` when level ≥ warn and the marker is absent, writes `cost-paused-alerted-<YYYY-MM>` when paused and that marker is absent, and in each case calls `deliver(text)` (the alert chain) exactly once per month per level. `recordUsage` calls `checkCap()` only (flag side effect, no notification). `cxw-ops costs check` calls `notifyCap` with the real alert delivery and prints the text if it delivered; exit 0 always.
+- `apps/ops/src/cli.ts` — wire `costs check` to `notifyCap`; purge refusal exit code 2; keep §I1 formats.
+- `apps/ops/src/commands.ts` — `purge` returns the refusal text instead of throwing.
+- `apps/ops/src/killswitch.ts` — (S7) never log the panic reason; log `{ reasonLength }` only. The reason still goes into the `panic` flag file (owner-only state dir).
+- `apps/ops/src/sentinel.ts` —
+  - (B3) order inside `executeHit`: run the kill-switch action first (`panic()`/`resume()`), catching and logging errors; then send the ack with `.catch()` (never gates the action); then persist the handled id. A failed action is still marked handled (no retry storm) but logged at error and re-alerted via the alert chain best-effort.
+  - (S4) a row qualifies only if `isOwnerJid(sender ?? jid)` **or** (`from_me = 1` **and** `isOwnerJid(jid)`), i.e. `from_me` in a third-party or group chat never counts.
+- `apps/ops/src/index.ts` — export `notifyCap`, `OpsError`.
+- `apps/ops/README.md` — document `costs check` delivery, purge refusal, the sentinel rule, stderr logging.
+- Tests (`apps/ops/test/*.test.ts`, `helpers.ts`): add (a) purge refuses with empty owners and touches nothing; (b) media containment: a row with `media_path` = `../../etc/x` and one absolute outside `dataDir` are skipped and counted; (c) orphan walk NULLs the dangling `media_path`; (d) dry-run writes no `last-purge.json`; (e) `notifyCap` delivers once at warn, once at pause, and not again within the month; (f) `recordUsage` does not call deliver; (g) sentinel: ack failure (bridge unreachable) still runs `panic` and marks handled (use a fake `CXW_CTL` script and a closed port); `from_me=1` in a third-party chat is ignored; `from_me=1` in the self-chat is accepted; (h) `health --json` stdout parses as JSON when logging is at info (spawn the CLI with `tsx` and `LOG_LEVEL=info`); (i) TZ: set `process.env.TZ` to two different zones inside the test and assert the month key differs around a boundary (fix `helpers.ts` if it passes TZ as a config key that nothing reads). Keep the suite < 30 s, no open handles.
+
+## Files touched — Implementer B (deploy + docs)
+
+- `deploy/hetzner/monitor.sh` — (B1) fix the `grep -c … || echo 0` bug (use `[ -n "$problems" ]`, never arithmetic on grep output); after the health run also call `"$CXW_OPS_BIN" costs check` (ignore its exit status). Keep exit 0 always.
+- `deploy/hetzner/cxw-ctl` — (B4) `status` → `systemctl status --no-pager --lines=20 cxw-<unit>`; `export PATH=/usr/sbin:/usr/bin:/sbin:/bin` first thing; `SYSTEMCTL`/`JOURNALCTL`/test mode honoured **only when `CXW_CTL_TEST=1` and EUID ≠ 0**; otherwise call `/usr/bin/systemctl` and `/usr/bin/journalctl` by absolute path. Update `test/cxw-ctl.test.sh` (add a `status` case asserting `--no-pager`).
+- `deploy/hetzner/sudoers.d/cxw-ctl` — add `Defaults!/usr/local/bin/cxw-ctl env_reset` and keep `!requiretty`; comment that `secure_path` is set inside the helper.
+- `deploy/hetzner/ops.env.example` — (B5) optional secrets become empty (`BRIDGE_TOKEN=`, `SMTP_PASS=`, `TELEGRAM_BOT_TOKEN=`) with a comment "empty = disabled"; no `CHANGEME` anywhere in this file.
+- `deploy/hetzner/install-ops.sh` — (S3) before appending to `cxw.env`, add a newline if the file does not end with one; (docs audit) create `/srv/cxw/google.env` root:root 0600 with a commented header (`# GOOGLE_CLIENT_ID=`, `# GOOGLE_CLIENT_SECRET=`, `# GOOGLE_REFRESH_TOKEN=`, "filled in by Phase 4") when missing.
+- `deploy/hetzner/security-check.sh` — (S8) redaction check per package: for every dir in `apps/*/src packages/*/src mcp/*/src` that mentions `pino`, require `redact` with `paths` in that same dir; print one PASS/FAIL line per package; SKIP only if no package uses pino.
+- `deploy/hetzner/chaos.sh` — after the baseline monitor run assert `monitor.status` starts with `ok`; in scenario 2 assert the monitor's status file ends `ok` after the heal re-check. Add a scenario 6: cost cap — run `"$CXW_OPS_BIN" costs check` with `CXW_COST_MONTHLY_CAP_USD=0.01` after seeding `ops.sqlite` with one usage row via `node -e` (`node:sqlite`, table `usage` as in plan D4, `cost_usd = 0.02`) and assert one `[alert:` line containing `cost`, then a second `costs check` produces no new alert line.
+- Docs: `docs/RUNBOOK.md` (§11.4 guard the `ops.sqlite` integrity check with `[ -f … ] &&`; §8 mention `google.env` placeholder; §15 `costs check` in the monitor tick; §13 sentinel rule "self-chat or owner sender"), `docs/ARCHITECTURE.md` (known limitations: drop busy-timeout and dangling-media items, add "purge refuses when the owner list is empty", cost notification flow via `notifyCap`; C1 note that `BRIDGE_TOKEN` empty = no header), `docs/runs/chaos-2026-09-03.md` (replace the table with the new 6-scenario run output; keep the deviations).
+
+## Steps
+
+1. A and B in parallel. A: `pnpm --filter @cxw/ops typecheck && pnpm --filter @cxw/ops test && pnpm exec eslint apps/ops && pnpm exec prettier --write apps/ops`. B: shellcheck + `bash -n` + `cxw-ctl.test.sh` + `security-check.sh --repo`; B runs `chaos.sh --local` last (it needs A's code — if A is not done, re-run until it passes, up to 3 tries 2 minutes apart) and pastes the new summary into the run doc, then prettier on the docs.
+2. Reviewer re-checks B1–B5, S1–S9, and the containment change.
