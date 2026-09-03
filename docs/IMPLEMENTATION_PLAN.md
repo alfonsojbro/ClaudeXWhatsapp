@@ -168,6 +168,17 @@ Three layers, all Markdown, all in `vault/`, all in git:
 11. **Contacts enrichment:** people files in `memory/people/` auto-updated from WhatsApp + Gmail signals.
 12. **Location-aware routines** (Prague vs. travel).
 
+### 3.9 Installer and setup wizard (`apps/installer`, `apps/console/src/setup`)
+- **The problem:** every step of §3.1–§3.8 assumes a box that already exists, a tunnel that is already up, and someone at a terminal. Phase 10 removes that assumption: a person with a browser, an email address and one API token ends up with a working assistant.
+- **Two stages, because the box does not exist yet.**
+  - **Stage A, the installer.** A static page plus one stateless Cloudflare Pages Function, deployed to **the person's own Cloudflare account**. It finds the zone, creates the tunnel and its ingress, adds the proxied `cxw` DNS record, creates the Access application and a one-email policy, builds the cloud-init payload, creates the server, and polls `/setup/health` until the box answers. Every step carries a fallback: the exact `curl` or dashboard form that does the same thing by hand.
+  - **Stage B, the setup wizard.** A mode of the console at `https://cxw.<domain>/setup`, behind Access from its very first request. Owner number → WhatsApp QR → `claude setup-token` → Google OAuth → routines and timezone → vault remote → done. Server-rendered HTML, works with JavaScript off; JavaScript only polls the rotating QR.
+- **Provider-neutral after step 8.** A `ServerProvider` interface covers Hetzner's API, a cloud-init payload to paste into any Ubuntu 24.04 provider, and a single root SSH command for a server that already exists. The tunnel, DNS, Access, readiness probe and the whole wizard are identical on all three.
+- **Nothing is stored.** The installer declares no KV, D1, R2 or Durable Object binding, sets no cookie and logs no body; a test fails the build on any reference to a storage API. Tokens are used once from the person's own browser and their own Function, then discarded. Progress lives in `<CXW_STATE_DIR>/setup.json` on the box, mode 0600, and holds no secret — credentials go straight to `cxw.env` and `google.env` at 0600 and are never read back into a page.
+- **The wizard cannot approve anything.** Approval stays what §4 says it is: the owner replying `yes <token>` in WhatsApp, HMAC-bound to a chat JID. A test asserts no file under `src/setup/` references the confirm machinery, and that the only write paths are the state directory, the two env files, a routine's `enabled:` line and the vault repo's git config.
+- **Setup mode closes behind itself.** Once `completedAt` is stamped and an owner exists, every `/setup` route stops existing and the same address is the console. Only `/setup/health` keeps answering, with 204 and no body, so the installer can probe before Access is configured.
+- **The manual path is unchanged.** With none of the new cloud-init variables set, `bootstrap.sh` behaves exactly as before, and `docs/GETTING_STARTED.md` remains the supported fallback. `docs/INSTALLER.md` is the "easy way" section spliced in beside it.
+
 ---
 
 ## 4. Security and privacy (non-negotiable)
@@ -219,6 +230,7 @@ Stack: TypeScript, pnpm workspaces, Node 22, `tsx`, `better-sqlite3`, `@whiskeys
 | 5 | Routines | Scheduler, routine files, WhatsApp commands, morning-brief + evening-close + weekly-review + health-check | Morning brief arrives at 07:00 three days in a row; `run weekly-review` works on demand | 1.5 d |
 | 6 | Memory maturity | Implicit capture pass, nightly compile (raw → wiki) and consolidation, weekly memory review, FTS retrieval, people files | "who is X?" answers from memory built only by usage; consolidation reduces duplicates in a seeded test | 1.5 d |
 | 7 | Hardening + ops | Monitor, alert fallback, retention purge, cost line, kill switch, restore runbook, docs | Chaos test: kill bridge, unplug Google token, fill disk → alerts arrive, services self-heal | 1 d |
+| 10 | Installer + setup wizard | `apps/installer` (static page + stateless Pages Function on the person's own Cloudflare: tunnel, DNS, Access app and policy, cloud-init, server, readiness probe) and the setup wizard at `/setup` (owner, WhatsApp QR, `claude setup-token`, Google OAuth, routines + timezone, vault remote), provider-neutral after server creation | A new person with an email and one API token, and no terminal, reaches a working assistant behind Access; no token is stored anywhere and no `/setup` route survives completion | 1.5 d |
 
 Total ≈ 10 working days of focused build. Phases 3 and 4 can run in parallel (disjoint files).
 

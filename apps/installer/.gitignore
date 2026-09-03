@@ -1,0 +1,2 @@
+# tsc output for the browser bundle; built by `pnpm --filter @cxw/installer build`
+public/assets/

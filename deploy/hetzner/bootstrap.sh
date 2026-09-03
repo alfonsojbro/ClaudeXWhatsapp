@@ -12,6 +12,14 @@
 #   4. Node 22 (NodeSource), pnpm, Claude Code CLI
 #   5. system user `cxw`, /srv/cxw/{repo,data,backups,state} (0700)
 #   6. systemd units from ./systemd installed and timers enabled
+#
+# Optional, set by the phase 10 installer's cloud-init payload. With none of them set
+# this script behaves exactly as it did before phase 10:
+#   CXW_TUNNEL_TOKEN      install cloudflared and register the tunnel
+#   CXW_SETUP_MODE        write the console/setup block into cxw.env, shred user-data
+#   CXW_CONSOLE_HOSTNAME  the hostname the tunnel serves, e.g. cxw.example.com
+#   CF_ACCESS_TEAM        Cloudflare Access team name
+#   CF_ACCESS_AUD         Cloudflare Access application audience tag
 set -euo pipefail
 
 CXW_ROOT=/srv/cxw
@@ -21,6 +29,31 @@ SCRIPT_DIR=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 
 log()  { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
+
+# Merge KEY=VALUE into /srv/cxw/cxw.env in place. Replaces the line for KEY if it is
+# already there, appends it otherwise, and preserves every other line byte for byte.
+# The file stays root:root 0600.
+merge_env() {
+  local key=$1 value=$2 file="$CXW_ROOT/cxw.env" tmp
+  tmp=$(mktemp)
+  chmod 0600 "$tmp"
+  if [[ -f "$file" ]] && grep -q "^${key}=" "$file"; then
+    while IFS= read -r line || [[ -n "$line" ]]; do
+      if [[ "$line" == "${key}="* ]]; then
+        printf '%s=%s\n' "$key" "$value"
+      else
+        printf '%s\n' "$line"
+      fi
+    done < "$file" > "$tmp"
+  else
+    if [[ -f "$file" ]]; then
+      cat "$file" > "$tmp"
+    fi
+    printf '%s=%s\n' "$key" "$value" >> "$tmp"
+  fi
+  install -m 0600 -o root -g root "$tmp" "$file"
+  rm -f "$tmp"
+}
 
 [[ $EUID -eq 0 ]] || die "run as root"
 # shellcheck source=/dev/null
@@ -129,6 +162,54 @@ for f in cxw.env restic.env; do
   chmod 0600 "$CXW_ROOT/$f"; chown root:root "$CXW_ROOT/$f"
 done
 
+# ------------------------------------------- 5b. cloudflare tunnel (phase 10)
+# Only when the installer handed us a tunnel token. We use cloudflared's OWN systemd
+# unit on purpose: `cloudflared service install <token>` writes cloudflared.service.
+# Phase 8 owns the cxw-tunnel unit under deploy/hetzner/systemd, so adding our own
+# copy of that filename here would collide when the two branches merge.
+if [[ -n "${CXW_TUNNEL_TOKEN:-}" ]]; then
+  log "cloudflared tunnel"
+  if ! command -v cloudflared >/dev/null 2>&1; then
+    mkdir -p /etc/apt/keyrings
+    curl -fsSL https://pkg.cloudflare.com/cloudflare-main.gpg -o /etc/apt/keyrings/cloudflare-main.gpg
+    chmod 0644 /etc/apt/keyrings/cloudflare-main.gpg
+    echo "deb [signed-by=/etc/apt/keyrings/cloudflare-main.gpg] https://pkg.cloudflare.com/cloudflared any main" \
+      > /etc/apt/sources.list.d/cloudflared.list
+    apt-get update -qq
+    apt-get install -y -qq cloudflared
+  fi
+  if [[ ! -f /etc/systemd/system/cloudflared.service ]]; then
+    cloudflared service install "$CXW_TUNNEL_TOKEN"
+  fi
+  systemctl enable --now cloudflared >/dev/null
+  merge_env CXW_TUNNEL_TOKEN "$CXW_TUNNEL_TOKEN"
+  ufw allow out 7844/tcp comment 'cloudflared' >/dev/null || true
+fi
+
+# ------------------------------------------------ 5c. setup wizard (phase 10)
+# The installer created the Access application before the box existed, so the console
+# can enforce Access on its very first request. Written here, not in the example file,
+# because the values are per-install.
+if [[ -n "${CXW_SETUP_MODE:-}" ]]; then
+  log "setup mode"
+  merge_env CXW_SETUP_MODE "$CXW_SETUP_MODE"
+  merge_env CONSOLE_REQUIRE_ACCESS true
+  merge_env CONSOLE_HOST 127.0.0.1
+  merge_env CONSOLE_PORT 7803
+  if [[ -n "${CXW_TIMEZONE:-}" ]]; then
+    merge_env TZ "$CXW_TIMEZONE"
+  fi
+fi
+if [[ -n "${CXW_CONSOLE_HOSTNAME:-}" ]]; then
+  merge_env CXW_CONSOLE_HOSTNAME "$CXW_CONSOLE_HOSTNAME"
+fi
+if [[ -n "${CF_ACCESS_TEAM:-}" ]]; then
+  merge_env CF_ACCESS_TEAM "$CF_ACCESS_TEAM"
+fi
+if [[ -n "${CF_ACCESS_AUD:-}" ]]; then
+  merge_env CF_ACCESS_AUD "$CF_ACCESS_AUD"
+fi
+
 # ------------------------------------------------------------ 6. systemd
 log "systemd units"
 UNIT_SRC="$SCRIPT_DIR/systemd"
@@ -148,6 +229,20 @@ if [[ -d "$UNIT_SRC" ]]; then
   systemctl list-timers 'cxw-*' --no-pager
 else
   echo "no systemd units found at $UNIT_SRC; clone the repo to $CXW_ROOT/repo and re-run"
+fi
+
+# --------------------------------------- 7. shred the cloud-init user-data
+# Hetzner shows a server's user-data in its own console by design, but the local copy
+# does not need to survive first boot. The stamp file makes a re-run a no-op rather
+# than a failure, which matters because this script is meant to be re-run.
+CLOUD_INIT_STAMP="$CXW_ROOT/state/.user-data-shredded"
+if [[ -n "${CXW_SETUP_MODE:-}" && ! -f "$CLOUD_INIT_STAMP" ]]; then
+  log "shredding the cloud-init user-data"
+  for f in /root/cxw-installer.env /var/lib/cloud/instance/user-data.txt /var/lib/cloud/instances/*/user-data.txt; do
+    [[ -f "$f" ]] || continue
+    shred -u "$f" 2>/dev/null || rm -f "$f"
+  done
+  install -m 0600 -o root -g root /dev/null "$CLOUD_INIT_STAMP"
 fi
 
 log "done"

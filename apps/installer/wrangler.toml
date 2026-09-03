@@ -1,0 +1,13 @@
+# Cloudflare Pages configuration for the installer.
+#
+# This file exists so the public mirror of this directory
+# (.github/workflows/mirror-installer.yml) is deployable as-is, including through
+# Cloudflare's "Deploy to Cloudflare" button, with no extra setup.
+#
+# There are deliberately NO bindings. The installer stores nothing: no KV namespace,
+# no D1 database, no R2 bucket, no Durable Object, no cache. Adding one here would fail
+# apps/installer/src/no-storage.test.ts.
+
+name = "cxw-installer"
+compatibility_date = "2026-09-01"
+pages_build_output_dir = "public"

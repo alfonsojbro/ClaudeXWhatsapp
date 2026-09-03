@@ -1,0 +1,197 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Set up your assistant</title>
+<meta name="description" content="What you need, how to run the installer on your own Cloudflare account, and what happens on your server afterwards.">
+<meta name="robots" content="index,follow">
+<link rel="stylesheet" href="../landing/fonts.css">
+<link rel="stylesheet" href="../landing/landing.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="mark" href="../">
+      <svg class="glyph" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <rect x="1" y="1" width="18" height="14" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M5 15 L5 19 L9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      ClaWa
+    </a>
+    <nav aria-label="Sections">
+      <ul>
+        <li><a href="../#does">What it does</a></li>
+        <li><a href="../#privacy">What stays yours</a></li>
+        <li><a href="../#cost">Cost</a></li>
+      </ul>
+    </nav>
+  </div>
+</header>
+
+<main id="main">
+
+<section class="page-head">
+  <div class="wrap">
+    <a class="crumb" href="../">Back to the overview</a>
+    <h1>Set up your assistant.</h1>
+    <p>Everything runs on accounts you open yourself. There is no account to create here, and no password
+      is ever typed into this site.</p>
+  </div>
+</section>
+
+<section>
+  <div class="wrap">
+    <h2>Before you start.</h2>
+    <p class="lede">Four things. Gather them first and the rest takes minutes.</p>
+
+    <div class="pair2">
+      <div class="opt def">
+        <h3>A Cloudflare account</h3>
+        <p>With a domain already added to it as a site. Your console will live at a name under that
+          domain, and Cloudflare guards the door.</p>
+        <p>You will create an API token scoped to that one zone, with permission to write tunnels,
+          Access applications and DNS records.</p>
+      </div>
+      <div class="opt">
+        <h3>Somewhere to run it</h3>
+        <p>Easiest is a Hetzner Cloud account with an API token that can read and write. The installer
+          makes the server for you, billed to you at €8.49 a month before tax.</p>
+        <p>If you already have a server running Ubuntu, you can use that instead and the installer
+          gives you one command to paste into it.</p>
+      </div>
+      <div class="opt">
+        <h3>Your own copy of the code</h3>
+        <p>Fork or clone
+          <a href="https://github.com/alfonsojbro/ClaudeXWhatsapp">the repository</a>, because your
+          server pulls the code from a repository you control.</p>
+        <p>The installer makes a deploy key in your browser and shows you where to paste it.</p>
+      </div>
+      <div class="opt">
+        <h3>The phone your WhatsApp is on</h3>
+        <p>You will scan a QR code with it at the end, the same way you link WhatsApp Web.</p>
+        <p>Also decide which email address should be the only one able to open your console.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="wrap">
+    <h2>Run the installer on your own account.</h2>
+    <p class="lede">The installer is a small page plus one function. You put it on your own Cloudflare
+      Pages so that your tokens go from your browser to Cloudflare and Hetzner, and nowhere else.</p>
+
+    <div class="steps">
+      <div class="step">
+        <h3>Build it</h3>
+        <div>
+          <p>From your clone, with Node 22 and pnpm installed.</p>
+          <code class="cmd">pnpm install
+pnpm --filter @cxw/installer build</code>
+        </div>
+      </div>
+      <div class="step">
+        <h3>Put it on Cloudflare Pages</h3>
+        <div>
+          <p>Create a Pages project on your own account and publish the installer's public folder to
+            it. The function beside it forwards one request at a time and keeps nothing.</p>
+          <code class="cmd">npx wrangler pages deploy apps/installer/public</code>
+        </div>
+      </div>
+      <div class="step">
+        <h3>Open it and fill it in</h3>
+        <div>
+          <p>Your domain, the email that should be allowed in, the two tokens, and the address of your
+            own repository. A Tailscale key is optional and only adds direct SSH.</p>
+          <p>Every field says what it is used for and confirms that it is never stored.</p>
+        </div>
+      </div>
+    </div>
+
+    <div class="flag">
+      <h3>Two pieces are still landing</h3>
+      <p>The installer's own page is being finished right now. Its logic, its tests, its function and
+        its server providers are done and in the repository.</p>
+      <p>A one click button that puts the installer on your Cloudflare without the three steps above is
+        coming too, once the installer has its own public repository. The steps above are what works
+        today, and every account and token in the list is needed either way.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="wrap">
+    <h2>What the installer does for you.</h2>
+    <p class="lede">Nine steps, in this order. If any call is refused because a token is missing a
+      permission, the page shows you the exact command or the exact form to do that one step by hand.</p>
+
+    <div class="groups">
+      <div class="group wide">
+        <span class="on">On Cloudflare</span>
+        <h3>The door</h3>
+        <ol>
+          <li>Finds your domain and reads its zone.</li>
+          <li>Creates a tunnel to your server.</li>
+          <li>Routes the tunnel to the console.</li>
+          <li>Points a DNS record at it.</li>
+          <li>Puts Access in front of the address.</li>
+          <li>Allows your email, and only yours.</li>
+        </ol>
+      </div>
+      <div class="group">
+        <span class="on">On your server</span>
+        <h3>The machine</h3>
+        <ol>
+          <li>Builds the first boot instructions, checked so no secret can land in the wrong place.</li>
+          <li>Creates the server with a firewall that allows nothing inbound, or hands you one command
+            to run on a machine you already own.</li>
+        </ol>
+      </div>
+      <div class="group">
+        <span class="on">Then it waits</span>
+        <h3>The handover</h3>
+        <ol>
+          <li>Watches your address until the tunnel answers and Access is in front of it, then gives
+            you one button through to the wizard. Three to five minutes.</li>
+        </ol>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<section>
+  <div class="wrap">
+    <h2>Then the wizard takes over.</h2>
+    <div class="after">
+      <p>The rest happens on your own server, behind the door that was built before the machine even
+        booted. There is no moment when it is open to the internet.</p>
+      <p>It asks for your WhatsApp number, shows the QR to link your phone, signs you in to Claude,
+        connects Gmail and Calendar if you want them, lets you switch routines on, and offers to give
+        your notes their own git remote.</p>
+      <p>Every step can be run again later from the console, so a phone that needs re-linking or a
+        Google token that expires is a two minute fix, not a reinstall.</p>
+    </div>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>ClaWa</span>
+    <a href="../#privacy">What stays yours</a>
+  </div>
+</footer>
+
+</body>
+</html>

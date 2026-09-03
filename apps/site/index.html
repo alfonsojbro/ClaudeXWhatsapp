@@ -1,0 +1,290 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>ClaWa</title>
+<meta name="description" content="A private Claude assistant on a small server of your own, answering inside WhatsApp. It reads your chats, mail and calendar when you ask, and never messages anyone else without your typed yes.">
+<meta property="og:title" content="ClaWa">
+<meta property="og:description" content="A private Claude assistant on a small server of your own, answering inside WhatsApp.">
+<meta property="og:type" content="website">
+<link rel="preload" href="landing/fonts/bricolagegrotesque-3.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="preload" href="landing/fonts/sourcesans3-3.woff2" as="font" type="font/woff2" crossorigin>
+<link rel="stylesheet" href="landing/fonts.css">
+<link rel="stylesheet" href="landing/landing.css">
+</head>
+<body>
+
+<a class="skip" href="#main">Skip to content</a>
+
+<header class="nav">
+  <div class="wrap">
+    <a class="mark" href="#main">
+      <svg class="glyph" viewBox="0 0 20 20" aria-hidden="true" focusable="false">
+        <rect x="1" y="1" width="18" height="14" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
+        <path d="M5 15 L5 19 L9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+      </svg>
+      ClaWa
+    </a>
+    <nav aria-label="Sections">
+      <ul>
+        <li><a href="#does">What it does</a></li>
+        <li><a href="#setup">Setup</a></li>
+        <li><a href="#privacy">What stays yours</a></li>
+        <li><a href="#cost">Cost</a></li>
+      </ul>
+    </nav>
+    <a class="btn btn-go btn-sm" href="/install">Start setup</a>
+  </div>
+</header>
+
+<!-- The single CTA points at /install, the page that hands over to apps/installer. -->
+<main id="main">
+
+<!-- Hero: asymmetric split, real exchange on the right -->
+<section class="hero">
+  <div class="wrap">
+    <div>
+      <h1>Your own Claude.<br>In your own WhatsApp.</h1>
+      <p>It runs on a small server you control, and reads your chats, mail and calendar when you ask.</p>
+      <div class="cta">
+        <a class="btn btn-go" href="/install">Start setup</a>
+        <a class="btn btn-quiet" href="#setup">How it works</a>
+      </div>
+    </div>
+
+    <div class="thread" aria-label="An example exchange in WhatsApp">
+      <div class="bub me">
+        <span class="att">whiteboard.jpg</span>
+        what did we decide here?
+      </div>
+      <div class="bub it">
+        Three decisions on the board. Ship the pricing page Friday, drop the annual plan, Marco owns onboarding. Save them?
+      </div>
+      <div class="bub me">yes, and remind Marco Monday 9am</div>
+      <div class="bub it">
+        Saved to <span class="path">raw/decision-pricing-whiteboard.md</span> and the reminder is set for Monday 09:00.
+        To message Marco I need your yes. Reply <span class="tok">yes k3f9qa</span>
+        <small>confirm gate</small>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- What it does: bento with varied cell sizes and two tinted cells -->
+<section id="does">
+  <div class="wrap">
+    <h2>It reads what you already have.</h2>
+    <p class="lede">Nothing here is a fresh start. The assistant works from the history, mail and files that are already yours.</p>
+
+    <div class="bento">
+      <div class="cell wide">
+        <h3>Years of your own WhatsApp</h3>
+        <p>Ask what Ana said about the invoice in March. Your history is stored on your own server and searched there, old chats included, from the first sync onwards.</p>
+      </div>
+
+      <div class="cell pair">
+        <h3>Gmail and Calendar</h3>
+        <p>What is on tomorrow. Which mail still needs a reply. Read when you ask for it, not on a schedule you did not set.</p>
+      </div>
+
+      <div class="cell half">
+        <h3>Photos, PDFs and voice notes</h3>
+        <p>Send a whiteboard photo, a contract, or a two minute voice note. It reads them and answers in the same thread.</p>
+      </div>
+
+      <div class="cell half">
+        <h3>A brief at seven, a close at nine</h3>
+        <p>Calendar, unread mail and messages you left hanging in the morning. What happened and what is still open at night. A longer review on Sunday.</p>
+      </div>
+
+      <div class="cell full">
+        <div>
+          <h3>A second brain that grows on its own</h3>
+          <p>Decisions, people, ideas and projects are written to Markdown files as you talk. They are committed to git, so you can open the whole thing in Obsidian on your laptop and edit it by hand.</p>
+        </div>
+        <ul class="files">
+          <li>raw/decision-pricing-whiteboard.md</li>
+          <li>wiki/People/Ana Kovarikova.md</li>
+          <li>memory/MEMORY.md</li>
+        </ul>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- Setup: three rows, heading beside body -->
+<section id="setup">
+  <div class="wrap">
+    <h2>Three steps to a working assistant.</h2>
+    <p class="lede">No terminal at any point. The installer does the parts that need an API, and hands you the parts that need your phone.</p>
+
+    <div class="steps">
+      <div class="step">
+        <h3>Open two accounts</h3>
+        <div>
+          <p>A Hetzner account for the server, and a Cloudflare account with a domain on it. Both are free to open and both stay in your name.</p>
+          <p>You also choose the single email address that is allowed to open your console later.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <h3>Run the installer</h3>
+        <div>
+          <p>The installer is a page you put on your own Cloudflare account. You paste a token, it creates an address only you can open, and it starts a server with the assistant already on it.</p>
+          <p>Your tokens are used once, in your own browser, and are never written down. Boot takes three to five minutes.</p>
+        </div>
+      </div>
+
+      <div class="step">
+        <h3>Scan the QR with WhatsApp</h3>
+        <div>
+          <p>Link your phone the same way you link WhatsApp Web. Then sign in to Claude, connect Google if you want it, and pick which routines run.</p>
+          <p>Each screen tells you what it is about to do before it does it.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- Console: reduced preview of the real console -->
+<section id="console" class="console-sec">
+  <div class="wrap">
+    <div>
+      <div class="screen">
+        <div class="head">
+          <b>Console</b>
+          <span>your own address, and only your email can open it</span>
+        </div>
+        <div class="tiles">
+          <div class="tile">
+            <div class="lbl">WhatsApp</div>
+            <div class="val">Connected</div>
+            <div class="sub">Last message 4 min ago</div>
+          </div>
+          <div class="tile">
+            <div class="lbl">Assistant</div>
+            <div class="val">Running</div>
+            <div class="sub">Up 6 days</div>
+          </div>
+          <div class="tile">
+            <div class="lbl">Routines</div>
+            <div class="val">8 defined</div>
+            <div class="sub">Next run 15:45</div>
+          </div>
+          <div class="tile">
+            <div class="lbl">Last backup</div>
+            <div class="val">3 h ago</div>
+            <div class="sub">41 snapshots kept</div>
+          </div>
+        </div>
+        <div class="queue">
+          <div class="qh"><span>Waiting on you</span><span>7 min left</span></div>
+          <div class="who">Email to Ana Kovarikova</div>
+          <p class="prev">Confirming Thursday at 10. I will bring the revised scope and the two pricing options we discussed.</p>
+          <div class="act">Reply <b>yes k3f9qa</b> in WhatsApp</div>
+        </div>
+        <div class="foot">Approval happens in WhatsApp. The console never sends anything on your behalf.</div>
+      </div>
+      <p class="caption">Sample figures, arranged the way the real ones will be.</p>
+    </div>
+
+    <div>
+      <h2>You can see what it is doing.</h2>
+      <p class="lede">A web page on your own server shows whether WhatsApp is linked, which routines ran and what they cost, and anything that is waiting for you to say yes.</p>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- Privacy: the gate, then the honest trade -->
+<section id="privacy">
+  <div class="wrap">
+    <h2>Your messages never leave your server.</h2>
+    <p class="lede">WhatsApp history, mail, media and every token sit on the machine you rent. Nothing is copied off it. There is no service in the middle and no database anywhere holding your data.</p>
+
+    <div class="gate">
+      <div>
+        <h3>It cannot message another person without your yes.</h3>
+        <p>Anything that would reach someone else stops first. A WhatsApp message, an email, a calendar invite with guests. It shows you the draft with a short code, and nothing leaves until you type that code back.</p>
+      </div>
+      <div class="say">
+        It would send:<b>yes k3f9qa</b>
+      </div>
+    </div>
+
+    <div class="pair2">
+      <div class="opt def">
+        <h3>Nothing is stored anywhere else</h3>
+        <p>The installer runs on your own Cloudflare account and talks to Hetzner with your token, from your browser. It keeps no database and writes nothing down.</p>
+        <p>Once you are set up, the only copy of anything is the one on your server.</p>
+      </div>
+      <div class="opt">
+        <h3>The one thing worth knowing</h3>
+        <p>The first boot instructions carry your deploy key and tunnel token, and Hetzner can read them while the server starts. Every cloud server is built this way.</p>
+        <p>The server deletes its copy as soon as it has finished booting.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- Cost -->
+<section id="cost">
+  <div class="wrap">
+    <h2>Two bills, both in your name.</h2>
+    <p class="lede">You open both accounts yourself, in your own name, and you can close either one at any time.</p>
+
+    <div class="bill">
+      <div>
+        <div class="k">&euro;8.49<small>a month</small></div>
+        <div class="lbl">The server</div>
+        <p>A Hetzner CX33 in Germany or Finland. Four cores, 8 GB of memory, 80 GB of disk. Before tax, and add &euro;0.50 if you want an IPv4 address.</p>
+      </div>
+      <div>
+        <div class="k">Your plan</div>
+        <div class="lbl">Claude</div>
+        <p>Sign in on the server with the Claude subscription you already pay for, or use an API key and watch the daily spend in the console.</p>
+      </div>
+    </div>
+  </div>
+</section>
+
+<hr class="rule">
+
+<!-- Who it is for -->
+<section class="only">
+  <div class="wrap">
+    <h2>Built for one person.</h2>
+    <p>One phone, one server, one person's history. It is not a shared inbox, it is not a help desk, and it will not answer your customers.</p>
+    <p>If you need something that talks to other people on its own, this is the wrong tool and you should not set it up.</p>
+  </div>
+</section>
+
+<section class="close">
+  <div class="wrap">
+    <h2>It takes about ten minutes.</h2>
+    <p>You need a Hetzner account, a domain on Cloudflare and the phone your WhatsApp is on. Everything else happens on the page.</p>
+    <a class="btn btn-go" href="/install">Start setup</a>
+  </div>
+</section>
+
+</main>
+
+<footer>
+  <div class="wrap">
+    <span>ClaWa</span>
+    <a href="#privacy">What stays yours</a>
+  </div>
+</footer>
+
+</body>
+</html>
