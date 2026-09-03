@@ -259,3 +259,80 @@ Every step is re-runnable and idempotent, and each has a test that runs it twice
 ## Estimate
 
 1.5 days. Needs Alfonso once, to test on his own accounts.
+
+---
+
+## Rev 4 (2026-09-03, later) — landing page hand-off and provider neutrality
+
+**Provenance, so it can be corrected:** both changes below reached this session through the peer
+session `claudexwhatsapp-c9`, which reports Alfonso decided them in its conversation. They were not
+typed to me directly. Everything else in this plan came from Alfonso's own instruction.
+
+### 4.1 A shared landing page hands off to a per-visitor installer
+
+Rev 3 stands unchanged: `apps/installer` is a static page plus a stateless Pages Function that runs
+on **the visitor's own Cloudflare account**, with no sign-up, no KV and no stored token. Added on top:
+Alfonso hosts one public, static landing page (`apps/site`, **owned by a different session, not this
+one**) whose single call to action deploys `apps/installer` into the visitor's own Cloudflare with one
+click, then opens it.
+
+**The one-click flow needs the installer in a public repository.** Cloudflare's "Deploy to Cloudflare"
+button is a URL of the form `https://deploy.workers.cloudflare.com/?url=<public git repo>`, and
+Cloudflare's build step clones that URL anonymously. The main repository is private and holds the
+vault, the deploy scripts and the runbook.
+
+**Decision: mirror, do not open the main repository.** A GitHub Action pushes only `apps/installer`
+to a small public repository. Reasons: making any part of the main repo public is a one-way door
+(history included), the vault and runbook must never be public, and the mirror is reversible by
+deleting one repository. Concretely this branch adds `.github/workflows/mirror-installer.yml`,
+triggered on pushes to `main` that touch `apps/installer/**`, publishing that subtree to
+`alfonsojbro/cxw-installer` with a `wrangler.toml` and a deploy button in its README. The public
+repository and the token the Action needs are Alfonso's to create; the workflow is inert until he
+does, and the RUNBOOK carries the one-time steps. **This session creates no repository and no token.**
+
+**First screen.** It must assume the visitor arrived from the landing page with no context: one line
+saying what is about to happen and roughly how long it takes, then the input fields, each with its
+"used once from this page, never stored" note. No preamble, no second explanation of the product.
+
+### 4.2 The assistant is not tied to Hetzner
+
+A "bring your own server" path sits beside the Hetzner one-click.
+
+- `src/providers/types.ts` defines a small `ServerProvider` interface: `id`, `label`,
+  `capabilities` (whether it can create a cloud firewall), `createServer(input)` and
+  `waitForRunning(id)`. Adding DigitalOcean or Vultr later is one file each, and nothing outside
+  `src/providers/` has to change.
+- `src/providers/hetzner.ts` wraps the existing client to implement it. The empty-rules firewall stays
+  Hetzner-specific; for every other provider `bootstrap.sh`'s ufw default-deny is the firewall, and
+  the page says so rather than pretending a cloud firewall exists.
+- `src/providers/manual.ts` implements the same interface with no API at all. It offers two routes:
+  1. **A new server anywhere.** Show the generated cloud-init user-data with a copy button, to paste
+     into any provider's create-server form that accepts cloud-init on Ubuntu 24.04 (DigitalOcean,
+     Vultr, Linode, OVH, Scaleway are named on the page as known-good).
+  2. **A server that already exists.** One command to run as root over SSH. It is a single
+     self-contained line that base64-decodes an embedded payload and runs it. It deliberately does
+     **not** curl a script from the internet and pipe it to a shell: the payload carries the person's
+     own deploy key and tunnel token, and it is pasted by them into their own session, so nothing is
+     fetched from a third party and nothing secret crosses another host. `buildBootstrapCommand(input)`
+     produces it from the same inputs as `buildCloudInit`, and `assertNoSecretLeaks` guards it too.
+- **Everything after server creation is provider-neutral.** The tunnel, the DNS record, the Access
+  application, the readiness probe and the entire Stage B wizard neither know nor care which provider
+  made the box. Only steps 8 of the installer's order of operations is provider-specific. A test
+  asserts that no module outside `src/providers/` imports `hetzner.ts`.
+
+### 4.3 Additions to Files touched
+
+- `apps/installer/src/providers/types.ts`, `hetzner.ts`, `manual.ts`, and their tests
+- `apps/installer/src/bootstrap-command.ts` + test — the SSH one-liner builder
+- `apps/installer/wrangler.toml` — so the mirrored repository is deployable as-is
+- `.github/workflows/mirror-installer.yml` — the public mirror, inert until Alfonso creates the repo
+- `docs/RUNBOOK.md` — one-time mirror setup, and the bring-your-own-server test
+
+### 4.4 Additions to Acceptance
+
+8. The provider interface holds: a test asserts no module outside `src/providers/` imports the
+   Hetzner client, and that `manual.ts` satisfies the same interface without any network call.
+9. The SSH one-liner and the cloud-init payload are built from the same inputs and both pass
+   `assertNoSecretLeaks`.
+10. No repository, token or Cloudflare resource is created by this work. The mirror workflow is
+    committed but cannot run until Alfonso creates the public repository and its secret.
