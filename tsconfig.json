@@ -1,0 +1,20 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "NodeNext",
+    "moduleResolution": "NodeNext",
+    "strict": true,
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "noEmit": true,
+    "resolveJsonModule": true,
+    "types": ["node"],
+    "paths": {
+      "@cxw/shared": ["./packages/shared/src/index.ts"],
+      "@cxw/vault": ["./mcp/vault/src/index.ts"],
+      "@cxw/brain-memory": ["./apps/brain/src/memory/index.ts"],
+      "@cxw/scheduler": ["./apps/scheduler/src/index.ts"]
+    }
+  },
+  "include": ["packages/**/*.ts", "mcp/**/*.ts", "apps/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+}

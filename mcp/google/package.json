@@ -1,8 +1,8 @@
 {
-  "name": "@cxw/mcp-vault",
+  "name": "@cxw/mcp-google",
   "version": "0.0.1",
   "private": true,
-  "description": "MCP server for vault memory, captures, and git push.",
+  "description": "MCP server for Gmail and Calendar.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

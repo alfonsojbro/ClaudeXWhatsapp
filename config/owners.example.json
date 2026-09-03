@@ -1,0 +1,4 @@
+{
+  "$comment": "Owner allowlist. Copy to owners.json on the box. Group JIDs are never owners.",
+  "owners": ["<E164 number without +, e.g. 420123456789>@s.whatsapp.net"]
+}

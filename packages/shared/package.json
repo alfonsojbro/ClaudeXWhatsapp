@@ -1,11 +1,15 @@
 {
   "name": "@cxw/shared",
-  "version": "0.1.0",
+  "version": "0.0.1",
   "private": true,
+  "description": "Shared types, config loader, logger, WhatsApp text chunker.",
   "type": "module",
-  "main": "./src/index.ts",
-  "types": "./src/index.ts",
-  "exports": { ".": "./src/index.ts" },
-  "scripts": { "typecheck": "tsc --noEmit -p ." },
-  "dependencies": { "zod": "^3.25.0", "pino": "^9.7.0" }
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --noEmit false --outDir dist",
+    "test": "vitest run --passWithNoTests"
+  }
 }

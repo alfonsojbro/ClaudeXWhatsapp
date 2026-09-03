@@ -1,0 +1,9 @@
+[Unit]
+Description=ClaudeXWhatsapp health monitor (no LLM)
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=-/srv/cxw/cxw.env
+ExecStart=/srv/cxw/repo/deploy/hetzner/monitor.sh
+SyslogIdentifier=cxw-monitor

@@ -1,9 +1,34 @@
+# dependencies / build
 node_modules/
 dist/
-*.log
+coverage/
+*.tsbuildinfo
+
+# secrets and local env (examples are allowed)
 .env
+.env.*
 *.env
+!*.env.example
+!.env.example
+google.env
+credentials.json
+token.json
+
+# runtime data (lives in /srv/cxw on the box; local dev copy here)
 data/
-workspace/.claude/settings.local.json
-workspace/vault
+state/
+*.sqlite
+*.sqlite-wal
+*.sqlite-shm
+session/
+media/
+
+# vault: only app.json from .obsidian is tracked
+vault/.obsidian/*
+!vault/.obsidian/app.json
+
+# logs / os
+*.log
 .DS_Store
+.idea/
+.vscode/

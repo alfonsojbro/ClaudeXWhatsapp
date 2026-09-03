@@ -1,20 +1,33 @@
 {
   "name": "claudexwhatsapp",
+  "version": "0.0.1",
   "private": true,
-  "version": "0.1.0",
+  "description": "Personal Claude assistant on a Hetzner box, driven from WhatsApp.",
   "type": "module",
-  "engines": { "node": ">=20" },
+  "packageManager": "pnpm@10.34.5",
+  "engines": {
+    "node": ">=22 <23",
+    "pnpm": ">=10"
+  },
   "scripts": {
-    "build": "pnpm -r build",
+    "prepare": "git config core.hooksPath .githooks || true",
     "typecheck": "pnpm -r typecheck",
-    "test": "vitest run",
-    "brain": "pnpm --filter @cxw/brain start",
-    "vault-mcp": "pnpm --filter @cxw/mcp-vault start"
+    "test": "pnpm -r test",
+    "build": "pnpm -r build",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "check-secrets": "scripts/check-secrets.sh --all"
   },
   "devDependencies": {
-    "@types/node": "^22.10.0",
-    "tsx": "^4.20.0",
+    "@eslint/js": "^9.39.0",
+    "@types/node": "^22.20.0",
+    "eslint": "^9.39.0",
+    "eslint-config-prettier": "^10.1.0",
+    "prettier": "^3.9.0",
+    "tsx": "^4.23.0",
     "typescript": "^5.9.0",
-    "vitest": "^3.2.0"
+    "typescript-eslint": "^8.69.0",
+    "vitest": "^4.1.0"
   }
 }

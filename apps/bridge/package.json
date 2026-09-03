@@ -1,8 +1,8 @@
 {
-  "name": "@cxw/mcp-vault",
+  "name": "@cxw/bridge",
   "version": "0.0.1",
   "private": true,
-  "description": "MCP server for vault memory, captures, and git push.",
+  "description": "WhatsApp bridge: Baileys link, SQLite store, inbound bus, send API.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"

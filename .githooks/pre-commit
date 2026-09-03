@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# Installed via `pnpm install` (prepare script sets core.hooksPath=.githooks).
+set -euo pipefail
+repo_root=$(git rev-parse --show-toplevel)
+exec "$repo_root/scripts/check-secrets.sh"

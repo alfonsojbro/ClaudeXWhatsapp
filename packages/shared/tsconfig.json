@@ -1,1 +1,9 @@
-{ "extends": "../../tsconfig.base.json", "compilerOptions": { "noEmit": true, "rootDir": "." }, "include": ["src", "test"] }
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": "src",
+    "outDir": "dist",
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts"]
+}

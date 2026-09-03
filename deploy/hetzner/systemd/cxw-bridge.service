@@ -1,0 +1,36 @@
+[Unit]
+Description=ClaudeXWhatsapp WhatsApp bridge (Baileys)
+After=network-online.target tailscaled.service 
+Wants=network-online.target 
+StartLimitIntervalSec=300
+StartLimitBurst=10
+
+[Service]
+Type=simple
+User=cxw
+Group=cxw
+WorkingDirectory=/srv/cxw/repo
+EnvironmentFile=/srv/cxw/cxw.env
+Environment=NODE_ENV=production
+Environment=HOME=/home/cxw
+ExecStart=/usr/bin/pnpm --filter @cxw/bridge start
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=cxw-bridge
+
+# hardening
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectKernelTunables=true
+ProtectControlGroups=true
+RestrictSUIDSGID=true
+ReadWritePaths=/srv/cxw/data /srv/cxw/state /srv/cxw/repo /home/cxw
+UMask=0077
+
+[Install]
+WantedBy=multi-user.target

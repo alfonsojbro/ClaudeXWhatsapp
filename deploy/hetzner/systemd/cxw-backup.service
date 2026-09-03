@@ -1,0 +1,13 @@
+[Unit]
+Description=ClaudeXWhatsapp backup (restic to Hetzner Storage Box)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+User=root
+EnvironmentFile=/srv/cxw/restic.env
+ExecStart=/srv/cxw/repo/deploy/hetzner/backup.sh
+Nice=10
+IOSchedulingClass=idle
+SyslogIdentifier=cxw-backup

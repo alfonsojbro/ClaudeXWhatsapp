@@ -145,7 +145,16 @@ Three layers, all Markdown, all in `vault/`, all in git:
   7. `followups` (09:00): promises found in sent WhatsApp/email ("I'll send you…") not yet done.
   8. `health-check` (every 10 min, no LLM): WhatsApp connected? Google token valid? Disk? Alerts by WhatsApp, and by email as fallback when WhatsApp itself is down.
 
-### 3.7 Everything else worth adding (backlog, prioritised)
+### 3.7 GitHub as the source of truth
+- **One private GitHub repo, `ClaudeXWhatsapp`**, holds everything: code, deploy scripts, `workspace/` (the assistant's `CLAUDE.md`, `.mcp.json`, `.claude/agents/`, and `.claude/skills/`), and `vault/`.
+- **Skills are versioned.** Skills the assistant learns or that Alfonso writes live in `workspace/.claude/skills/<name>/SKILL.md`. The assistant can propose a new skill from chat (`new skill: …`); it lands as a commit on a branch and Alfonso merges it.
+- **Vault sync is git.** The box commits after every vault write and pushes; the Mac's Obsidian Git plugin pulls every 10 min and pushes Alfonso's edits. If the vault should be shareable on its own later, it becomes a git submodule with its own private repo without changing any code.
+- **Box access:** a read-write deploy key scoped to this repo only, stored at `/root/.ssh/cxw_deploy` (0600). No personal GitHub token on the box.
+- **Deploys are pulls:** `deploy/hetzner/update.sh` does `git pull --ff-only`, `pnpm install --frozen-lockfile`, restarts the three services. A `deploy` command from WhatsApp triggers it after a `yes <token>`.
+- **CI on GitHub Actions:** typecheck + vitest on every PR; a `check-secrets` job blocks any commit that contains tokens, phone numbers, or Baileys auth files. `.gitignore` excludes `data/`, `*.env`, and media.
+- **Never in git:** the WhatsApp session, Google refresh token, Claude OAuth token, SQLite databases, media files. These live under `/srv/cxw/` and go to restic backups only.
+
+### 3.8 Everything else worth adding (backlog, prioritised)
 1. **Reminders:** "remind me Friday 9am to call Marco" → systemd-style one-shot in the scheduler.
 2. **Draft replies for others:** "draft a reply to Juan" → preview → `yes <token>` sends from Alfonso's number.
 3. **Group summaries:** "summarize the family group since yesterday".
@@ -202,7 +211,7 @@ Stack: TypeScript, pnpm workspaces, Node 22, `tsx`, `better-sqlite3`, `@whiskeys
 
 | # | Phase | Deliverable | Done when | Est. |
 | --- | --- | --- | --- | --- |
-| 0 | Repo + box | Repo skeleton (pnpm workspaces, CI, tests), new Hetzner CX33 (4 vCPU / 8 GB) in fsn1, Ubuntu 24.04, Tailscale, ufw, Node 22, Claude Code logged in, restic to Storage Box | `claude -p "hi"` works on the box; SSH only via Tailscale; first backup restored in a test | 0.5 d |
+| 0 | Repo + box | Private GitHub repo + deploy key + Actions CI, repo skeleton (pnpm workspaces, tests), new Hetzner CX33 (4 vCPU / 8 GB) in fsn1, Ubuntu 24.04, Tailscale, ufw, Node 22, Claude Code logged in, restic to Storage Box | `claude -p "hi"` works on the box; SSH only via Tailscale; first backup restored in a test | 0.5 d |
 | 1 | Bridge + echo | Baileys link, SQLite store with history sync, owner allowlist, echo bot in self-chat | Send "ping" to yourself, get "pong"; `search_messages` returns old chats | 1 d |
 | 2 | Brain v0 | Agent SDK loop, session per chat, `/new`, chunked replies, reactions, `CLAUDE.md` persona, vault MCP with `remember:` and captures committed to `vault/` | 10-turn conversation with memory recall across `/new`; a capture appears in `vault/raw/` and is committed within 1 min | 2 d |
 | 3 | Media | Images, PDFs, voice notes, video keyframes | Send a photo of a whiteboard, get a structured summary; voice note transcribed and answered | 1 d |

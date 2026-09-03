@@ -1,0 +1,11 @@
+[Unit]
+Description=Run ClaudeXWhatsapp backup every 6 hours
+
+[Timer]
+OnCalendar=*-*-* 00/6:15:00
+Persistent=true
+RandomizedDelaySec=5min
+Unit=cxw-backup.service
+
+[Install]
+WantedBy=timers.target
