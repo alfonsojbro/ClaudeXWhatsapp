@@ -4,6 +4,7 @@ import { defineConfig } from 'vitest/config';
 // (which only runs the cross-package suites under tests/).
 export default defineConfig({
   test: {
-    include: ['src/**/*.test.ts'],
+    // This package keeps its unit suites in tests/ alongside the co-located ones.
+    include: ['src/**/*.test.ts', 'tests/**/*.test.ts'],
   },
 });

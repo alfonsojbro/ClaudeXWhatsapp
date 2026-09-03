@@ -19,6 +19,7 @@
     "format": "prettier --write .",
     "format:check": "prettier --check .",
     "check-secrets": "scripts/check-secrets.sh --all",
+    "google:auth": "pnpm --filter @cxw/mcp-google auth",
     "pair:qr": "tsx scripts/pair-qr/pair-qr.ts",
     "test:root": "vitest run --passWithNoTests"
   },

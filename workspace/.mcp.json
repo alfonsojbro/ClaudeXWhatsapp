@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "google": {
+      "command": "pnpm",
+      "args": ["--silent", "--dir", "..", "--filter", "@cxw/mcp-google", "start"]
+    }
+  }
+}

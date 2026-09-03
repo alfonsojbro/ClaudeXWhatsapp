@@ -1,8 +1,10 @@
 /**
- * @cxw/mcp-google — MCP server for Gmail and Calendar.
- * Phase 0 stub: starts, logs its banner, and waits for SIGTERM.
+ * @cxw/mcp-google — MCP server for Gmail, Calendar and Contacts.
+ * Entry point: starts the stdio server. Logs go to stderr; stdout is MCP.
  */
+import { pathToFileURL } from 'node:url';
 import { banner, serviceInfo } from '@cxw/shared';
+import { main as startServer } from './server.js';
 
 export const SERVICE = 'mcp-google' as const;
 
@@ -11,10 +13,11 @@ export function describe(): string {
 }
 
 export async function main(): Promise<void> {
-  console.log(describe());
+  console.error(describe());
+  await startServer();
   await new Promise<void>((resolve) => {
     const stop = (): void => {
-      console.log(`${SERVICE}: shutting down`);
+      console.error(`${SERVICE}: shutting down`);
       resolve();
     };
     process.once('SIGTERM', stop);
@@ -22,10 +25,12 @@ export async function main(): Promise<void> {
   });
 }
 
+// `import.meta.url` is percent-encoded; `pathToFileURL` encodes the argv path the same way, so
+// this still matches on a checkout whose path contains a space.
 const entry = process.argv[1];
-if (entry !== undefined && import.meta.url === new URL(`file://${entry}`).href) {
+if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
   main().catch((err: unknown) => {
-    console.error(err);
+    console.error(err instanceof Error ? err.message : err);
     process.exit(1);
   });
 }
