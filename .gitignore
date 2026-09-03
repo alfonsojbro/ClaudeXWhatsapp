@@ -32,3 +32,6 @@ vault/.obsidian/*
 .DS_Store
 .idea/
 .vscode/
+
+.worktrees/
+feature-research/**/audit.md
