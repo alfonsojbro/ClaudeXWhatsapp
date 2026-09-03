@@ -22,6 +22,18 @@ export async function main(): Promise<void> {
   });
 }
 
+// --- Routine commands (Phase 5) -------------------------------------------------------------
+//
+// The router must call `handleRoutineCommand` before the LLM loop, and only for the owner.
+// A string reply is final; `null` means the message was not a routine command.
+
+export { handleRoutineCommand, slugify } from './commands/routines.js';
+export type { RoutineCommandContext } from './commands/routines.js';
+export { parseSchedulePhrase, SUPPORTED_FORMS } from './commands/schedule-phrase.js';
+export type { ParsedSchedule } from './commands/schedule-phrase.js';
+export { parseReminder } from './commands/reminder.js';
+export type { ParsedReminder } from './commands/reminder.js';
+
 const entry = process.argv[1];
 if (entry !== undefined && import.meta.url === new URL(`file://${entry}`).href) {
   main().catch((err: unknown) => {

@@ -27,6 +27,10 @@ media/
 vault/.obsidian/*
 !vault/.obsidian/app.json
 
+# vault: run logs carry result bodies (mail, messages, journal). Never commit them.
+vault/runs/**
+!vault/runs/README.md
+
 # logs / os
 *.log
 .DS_Store

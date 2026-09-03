@@ -2,3 +2,7 @@ packages:
   - apps/*
   - mcp/*
   - packages/*
+
+onlyBuiltDependencies:
+  - better-sqlite3
+  - esbuild
