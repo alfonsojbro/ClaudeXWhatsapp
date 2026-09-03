@@ -9,7 +9,7 @@
   },
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
-    "build": "tsc -p tsconfig.json --noEmit false --outDir public/assets",
+    "build": "tsc -p tsconfig.build.json",
     "test": "vitest run"
   }
 }

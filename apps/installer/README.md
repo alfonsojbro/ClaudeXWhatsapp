@@ -6,6 +6,14 @@ then hands over to the setup wizard that runs on the box itself.
 
 It is a static page plus **one** Pages Function, deployed to **your own** Cloudflare account.
 
+## Deploy it
+
+[![Deploy to Cloudflare](https://deploy.workers.cloudflare.com/button)](https://deploy.workers.cloudflare.com/?url=https://github.com/alfonsojbro/cxw-installer)
+
+That clones this repository into **your** Cloudflare account and deploys it there. The
+compiled bundle is committed here, so there is no build step and nothing to configure. Open
+the page it gives you and follow it.
+
 ## It stores nothing
 
 There is no sign-up, no account and no database. The tokens you type are used once, from

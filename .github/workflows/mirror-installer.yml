@@ -57,6 +57,25 @@ jobs:
         if: steps.gate.outputs.ready == 'true'
         uses: actions/checkout@v4
 
+      - name: Set up pnpm
+        if: steps.gate.outputs.ready == 'true'
+        uses: pnpm/action-setup@v4
+
+      - name: Set up Node
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+
+      - name: Compile the browser bundle
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          pnpm install --frozen-lockfile
+          pnpm --filter @cxw/installer build
+          test -f apps/installer/public/assets/src/index.js
+
       - name: Build the mirror tree
         if: steps.gate.outputs.ready == 'true'
         run: |
@@ -65,9 +84,15 @@ jobs:
           rm -rf -- "$MIRROR_DIR"
           mkdir -p "$MIRROR_DIR"
           cp -R apps/installer/. "$MIRROR_DIR"/
-          # Never publish build output or installed dependencies.
-          rm -rf -- "$MIRROR_DIR/public/assets" "$MIRROR_DIR/node_modules"
-          ls -la "$MIRROR_DIR"
+          # Never publish installed dependencies.
+          rm -rf -- "$MIRROR_DIR/node_modules"
+          # The mirror IS the deployment artifact. Cloudflare's "Deploy to Cloudflare"
+          # button serves public/ with no build step of its own, and public/app.js
+          # imports ./assets/src/index.js — so the compiled bundle has to ship, and the
+          # source .gitignore that excludes it must not come along.
+          rm -f -- "$MIRROR_DIR/.gitignore"
+          test -f "$MIRROR_DIR/public/assets/src/index.js"
+          ls -la "$MIRROR_DIR" "$MIRROR_DIR/public"
 
       - name: Push the subtree to the public repository
         if: steps.gate.outputs.ready == 'true'
