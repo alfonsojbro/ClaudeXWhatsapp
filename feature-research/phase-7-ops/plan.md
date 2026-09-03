@@ -17,6 +17,7 @@ Ship the operations layer: monitor + alerting with fallbacks, retention purge, c
 ## A. Files touched
 
 ### Implementer A — `apps/ops` package (TypeScript)
+
 - `apps/ops/package.json`
 - `apps/ops/tsconfig.json`
 - `apps/ops/vitest.config.ts`
@@ -45,6 +46,7 @@ Ship the operations layer: monitor + alerting with fallbacks, retention purge, c
 - `apps/ops/test/helpers.ts`
 
 ### Implementer B — deploy scripts
+
 - `deploy/hetzner/monitor.sh`
 - `deploy/hetzner/cxw-ctl`
 - `deploy/hetzner/sudoers.d/cxw-ctl`
@@ -62,6 +64,7 @@ Ship the operations layer: monitor + alerting with fallbacks, retention purge, c
 - `deploy/hetzner/test/cxw-ctl.test.sh`
 
 ### Implementer C — docs
+
 - `docs/RUNBOOK.md`
 - `docs/ARCHITECTURE.md`
 - `docs/runs/chaos-2026-09-03.md` (written after the local chaos run; a separate mini-dispatch)
@@ -69,43 +72,43 @@ Ship the operations layer: monitor + alerting with fallbacks, retention purge, c
 
 ## B. Config (all read from the process env; on the box systemd loads `/srv/cxw/cxw.env` + `/srv/cxw/google.env`)
 
-| Key | Default | Meaning |
-|---|---|---|
-| `CXW_DATA_DIR` | `/srv/cxw/data` | bridge data (sqlite, media, session) |
-| `CXW_STATE_DIR` | `/srv/cxw/state` | ops state (alerts.json, health.json, panic, cost-paused, last-backup, restart-budget.json) |
-| `CXW_OWNERS_FILE` | `/srv/cxw/config/owners.json` | owner JIDs; JSON array of strings **or** `{ "owners": [...] }` |
-| `OWNER_JIDS` | — | comma-separated override/addition to the file |
-| `BRIDGE_DB` | `$CXW_DATA_DIR/bridge.sqlite` | bridge store |
-| `CXW_OPS_DB` | `$CXW_DATA_DIR/ops.sqlite` | ops store (usage table) |
-| `MEDIA_DIR` | `$CXW_DATA_DIR/media` | `<jid>/<msgid>.<ext>` |
-| `BRIDGE_URL` | `http://127.0.0.1:7801` | bridge HTTP |
-| `BRAIN_URL` | `http://127.0.0.1:7802` | brain HTTP |
-| `HEALTH_TIMEOUT_MS` | `5000` | per check |
-| `DISK_PATH` | `$CXW_DATA_DIR` | filesystem to measure |
-| `DISK_MIN_FREE_PCT` | `15` | alert below |
-| `BACKUP_MAX_AGE_H` | `8` | alert if last backup older |
-| `RESTIC_REPOSITORY`, `RESTIC_PASSWORD_FILE` | — | if set, backup age comes from `restic snapshots --latest 1 --json`; else from mtime of `$CXW_STATE_DIR/last-backup` |
-| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN` | — | token check; `GOOGLE_TOKEN_URL` default `https://oauth2.googleapis.com/token` (overridable for stubs) |
-| `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY` | — | auth check |
-| `CLAUDE_CREDENTIALS_FILE` | `~/.claude/.credentials.json` | cheap auth check (exists, `expiresAt` in future) |
-| `CLAUDE_AUTH_DEEP_CHECK_MIN` | `60` | run `claude -p ok --model claude-haiku-4-5` at most this often (0 = never) |
-| `ALERT_WHATSAPP_JID` | first owner | where WhatsApp alerts go |
-| `ALERT_REPEAT_MIN` | `240` | re-alert interval while still failing |
-| `ALERT_AFTER_FAILURES` | `1` | consecutive failures before first alert |
-| `ALERT_TRANSPORT` | `live` | `live` or `log` (log = print instead of send; used by tests and local chaos) |
-| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` | — | email fallback; disabled if `SMTP_HOST` unset |
-| `TELEGRAM_ALERTS` | `false` | Telegram fallback on/off |
-| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID` | — | Telegram |
-| `RETENTION_TEXT_DAYS` | `180` | third-party text |
-| `RETENTION_MEDIA_DAYS` | `90` | third-party media |
-| `RETENTION_OWNER_FOREVER` | `true` | never purge owner chats |
-| `PURGE_EMERGENCY_MEDIA_DAYS` | `14` | used by `purge --emergency` (monitor self-heal on low disk) |
-| `PURGE_VACUUM` | `false` | run `VACUUM` after purge |
-| `COST_MONTHLY_CAP_USD` | `100` | pause non-essential routines at/over cap |
-| `COST_WARN_PCT` | `80` | warn once at this % of cap |
-| `CXW_CTL` | `/usr/local/bin/cxw-ctl` | privileged helper path (`sudo -n $CXW_CTL …`); tests/local chaos point it at a fake |
-| `CXW_SUDO` | `sudo -n` | prefix; set to empty for tests/local chaos |
-| `LOG_LEVEL` | `info` | pino |
+| Key                                                                                                     | Default                       | Meaning                                                                                                             |
+| ------------------------------------------------------------------------------------------------------- | ----------------------------- | ------------------------------------------------------------------------------------------------------------------- |
+| `CXW_DATA_DIR`                                                                                          | `/srv/cxw/data`               | bridge data (sqlite, media, session)                                                                                |
+| `CXW_STATE_DIR`                                                                                         | `/srv/cxw/state`              | ops state (alerts.json, health.json, panic, cost-paused, last-backup, restart-budget.json)                          |
+| `CXW_OWNERS_FILE`                                                                                       | `/srv/cxw/config/owners.json` | owner JIDs; JSON array of strings **or** `{ "owners": [...] }`                                                      |
+| `OWNER_JIDS`                                                                                            | —                             | comma-separated override/addition to the file                                                                       |
+| `BRIDGE_DB`                                                                                             | `$CXW_DATA_DIR/bridge.sqlite` | bridge store                                                                                                        |
+| `CXW_OPS_DB`                                                                                            | `$CXW_DATA_DIR/ops.sqlite`    | ops store (usage table)                                                                                             |
+| `MEDIA_DIR`                                                                                             | `$CXW_DATA_DIR/media`         | `<jid>/<msgid>.<ext>`                                                                                               |
+| `BRIDGE_URL`                                                                                            | `http://127.0.0.1:7801`       | bridge HTTP                                                                                                         |
+| `BRAIN_URL`                                                                                             | `http://127.0.0.1:7802`       | brain HTTP                                                                                                          |
+| `HEALTH_TIMEOUT_MS`                                                                                     | `5000`                        | per check                                                                                                           |
+| `DISK_PATH`                                                                                             | `$CXW_DATA_DIR`               | filesystem to measure                                                                                               |
+| `DISK_MIN_FREE_PCT`                                                                                     | `15`                          | alert below                                                                                                         |
+| `BACKUP_MAX_AGE_H`                                                                                      | `8`                           | alert if last backup older                                                                                          |
+| `RESTIC_REPOSITORY`, `RESTIC_PASSWORD_FILE`                                                             | —                             | if set, backup age comes from `restic snapshots --latest 1 --json`; else from mtime of `$CXW_STATE_DIR/last-backup` |
+| `GOOGLE_CLIENT_ID`, `GOOGLE_CLIENT_SECRET`, `GOOGLE_REFRESH_TOKEN`                                      | —                             | token check; `GOOGLE_TOKEN_URL` default `https://oauth2.googleapis.com/token` (overridable for stubs)               |
+| `CLAUDE_CODE_OAUTH_TOKEN` / `ANTHROPIC_API_KEY`                                                         | —                             | auth check                                                                                                          |
+| `CLAUDE_CREDENTIALS_FILE`                                                                               | `~/.claude/.credentials.json` | cheap auth check (exists, `expiresAt` in future)                                                                    |
+| `CLAUDE_AUTH_DEEP_CHECK_MIN`                                                                            | `60`                          | run `claude -p ok --model claude-haiku-4-5` at most this often (0 = never)                                          |
+| `ALERT_WHATSAPP_JID`                                                                                    | first owner                   | where WhatsApp alerts go                                                                                            |
+| `ALERT_REPEAT_MIN`                                                                                      | `240`                         | re-alert interval while still failing                                                                               |
+| `ALERT_AFTER_FAILURES`                                                                                  | `1`                           | consecutive failures before first alert                                                                             |
+| `ALERT_TRANSPORT`                                                                                       | `live`                        | `live` or `log` (log = print instead of send; used by tests and local chaos)                                        |
+| `SMTP_HOST`, `SMTP_PORT`, `SMTP_USER`, `SMTP_PASS`, `SMTP_SECURE`, `ALERT_EMAIL_FROM`, `ALERT_EMAIL_TO` | —                             | email fallback; disabled if `SMTP_HOST` unset                                                                       |
+| `TELEGRAM_ALERTS`                                                                                       | `false`                       | Telegram fallback on/off                                                                                            |
+| `TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`                                                                | —                             | Telegram                                                                                                            |
+| `RETENTION_TEXT_DAYS`                                                                                   | `180`                         | third-party text                                                                                                    |
+| `RETENTION_MEDIA_DAYS`                                                                                  | `90`                          | third-party media                                                                                                   |
+| `RETENTION_OWNER_FOREVER`                                                                               | `true`                        | never purge owner chats                                                                                             |
+| `PURGE_EMERGENCY_MEDIA_DAYS`                                                                            | `14`                          | used by `purge --emergency` (monitor self-heal on low disk)                                                         |
+| `PURGE_VACUUM`                                                                                          | `false`                       | run `VACUUM` after purge                                                                                            |
+| `COST_MONTHLY_CAP_USD`                                                                                  | `100`                         | pause non-essential routines at/over cap                                                                            |
+| `COST_WARN_PCT`                                                                                         | `80`                          | warn once at this % of cap                                                                                          |
+| `CXW_CTL`                                                                                               | `/usr/local/bin/cxw-ctl`      | privileged helper path (`sudo -n $CXW_CTL …`); tests/local chaos point it at a fake                                 |
+| `CXW_SUDO`                                                                                              | `sudo -n`                     | prefix; set to empty for tests/local chaos                                                                          |
+| `LOG_LEVEL`                                                                                             | `info`                        | pino                                                                                                                |
 
 ## C. Contracts with the other phases (state them in ARCHITECTURE.md; do not implement the other side)
 
@@ -123,57 +126,71 @@ Ship the operations layer: monitor + alerting with fallbacks, retention purge, c
 ## D. Design
 
 ### D1. Health (`health.ts`)
+
 `runHealth(cfg) → { ts, ok, checks: Check[] }`, `Check = { name, ok, detail, healAction?: 'restart bridge'|'restart brain'|'purge --emergency'|'backup'|null }`. Checks, each independently try/caught with timeout:
+
 - `whatsapp`: bridge `/health` ok && connected. heal: `restart bridge`.
 - `brain`: brain `/health` ok. heal: `restart brain` (skipped if panic flag set; then detail = "panic mode, expected down").
 - `google`: POST token endpoint with refresh_token grant; ok on 200 with `access_token`. Missing env → ok=false detail "not configured" unless `GOOGLE_REFRESH_TOKEN` absent AND `GOOGLE_CHECK=off`. No heal.
 - `disk`: `statfs` via `fs.statfs` (Node ≥18.15); free% ≥ `DISK_MIN_FREE_PCT`. heal: `purge --emergency`.
 - `backup`: age ≤ `BACKUP_MAX_AGE_H`. heal: `backup`.
 - `claude_auth`: cheap check every run (token env present, or credentials file exists with `claudeAiOauth.expiresAt` > now); deep check (`claude -p ok --model claude-haiku-4-5 --max-turns 1`, 60 s timeout) at most every `CLAUDE_AUTH_DEEP_CHECK_MIN`, last-run stamp in state. No heal.
-Writes `$CXW_STATE_DIR/health.json`. Phone numbers never logged (logger redaction).
+  Writes `$CXW_STATE_DIR/health.json`. Phone numbers never logged (logger redaction).
 
 ### D2. Alerts (`alerts.ts`)
+
 State file `$CXW_STATE_DIR/alerts.json`: `{ [check]: { status: 'ok'|'failing', failures, firstFailedAt, lastAlertAt, alertCount } }`. `reconcile(previous, checks, now, cfg) → { next, toSend: Alert[] }` is pure and unit-tested: alert when failures reach `ALERT_AFTER_FAILURES` and no alert yet; re-alert after `ALERT_REPEAT_MIN`; recovery message on failing→ok once. Message format: `🚨 cxw: <check> FAILING since <t> — <detail>` / `✅ cxw: <check> recovered after <duration>`.
 Delivery (`deliver(alerts, checks, cfg)`): if the `whatsapp` check is ok → WhatsApp via bridge `/send` to `ALERT_WHATSAPP_JID` (must be an owner). If WhatsApp is down or the send throws → email (nodemailer, SMTP) then Telegram if `TELEGRAM_ALERTS=true`. `ALERT_TRANSPORT=log` prints `[alert:<channel>] …` to stdout instead. Multiple alerts in one tick are batched into one message per channel.
 
 ### D3. Retention (`retention.ts`)
+
 `purge({ dryRun, emergency }) → { textRows, mediaRows, files, bytes }`. Owner chats = `jid ∈ owners` (self-chat included). Third-party = everything else, groups included.
+
 - Text: `DELETE FROM messages WHERE jid NOT IN (owners) AND ts < cutoffText` (cutoff = now − `RETENTION_TEXT_DAYS`). If `messages_fts` exists try `INSERT INTO messages_fts(messages_fts) VALUES('rebuild')` inside try/catch.
 - Media: for messages with `media_path` and `ts < cutoffMedia` in non-owner chats → unlink file, `UPDATE messages SET media_path = NULL`; also walk `MEDIA_DIR/<jid>/` for non-owner jids and unlink files older than cutoff by mtime (orphans). `emergency` uses `PURGE_EMERGENCY_MEDIA_DAYS`, text untouched.
 - `RETENTION_OWNER_FOREVER=false` makes owner chats subject to the same rules (documented, off by default).
 - Optional `VACUUM`. Result written to `$CXW_STATE_DIR/last-purge.json`.
 
 ### D4. Costs (`costs.ts`)
+
 ops.sqlite table `usage(id INTEGER PK, ts INTEGER, source TEXT, chat_jid TEXT, routine TEXT, model TEXT, input_tokens INTEGER, output_tokens INTEGER, cache_read_tokens INTEGER, cache_write_tokens INTEGER, cost_usd REAL)`; index on `ts`. Pricing per MTok (input / output / cache read / cache write): `claude-fable-5-1` 10/50/0.25/12.5 · `claude-fable-5` 10/50/1/12.5 · `claude-opus-5` 5/25/0.5/6.25 · `claude-opus-4-8` 5/25/0.5/6.25 · `claude-sonnet-5` 2/10/0.2/2.5 · `claude-haiku-4-5` 1/5/0.1/1.25 · unknown model → opus-5 rates + warn. Match by prefix so dated ids still price.
 `recordUsage`, `todayTotals()`, `monthTotals()`, `dailyCostLine()`, `checkCap()`: at ≥ `COST_WARN_PCT` write warn-once marker `$CXW_STATE_DIR/cost-warned-<YYYY-MM>` and return an owner warning text; at ≥ 100 % write `cost-paused` flag `{ since, reason: 'cost-cap', month, total, cap }` and return text. `checkCap` is called by `recordUsage` and by the monitor. Flag auto-clears when month changes or `costs unpause`. Month boundaries in `TZ` of the process (document: set `TZ=Europe/Prague` in cxw.env).
 
 ### D5. Kill switch (`killswitch.ts` + `cxw-ctl`)
-`panic(reason)`: write `$CXW_STATE_DIR/panic` `{ since, by, reason }`, then `ctl('stop','scheduler')`, then `ctl('stop','brain')` (brain last, and the command handler returns the ack text *before* stopping the brain: the caller sends the ack, then ops runs the stop on a 1 s timer). `resume()`: delete flag, `ctl('start','brain')`, `ctl('start','scheduler')`. `ctl(action, unit)` runs `${CXW_SUDO} ${CXW_CTL} <action> <unit>` with `execFile` (no shell), 30 s timeout, allowlist checked in TS too.
+
+`panic(reason)`: write `$CXW_STATE_DIR/panic` `{ since, by, reason }`, then `ctl('stop','scheduler')`, then `ctl('stop','brain')` (brain last, and the command handler returns the ack text _before_ stopping the brain: the caller sends the ack, then ops runs the stop on a 1 s timer). `resume()`: delete flag, `ctl('start','brain')`, `ctl('start','scheduler')`. `ctl(action, unit)` runs `${CXW_SUDO} ${CXW_CTL} <action> <unit>` with `execFile` (no shell), 30 s timeout, allowlist checked in TS too.
 `cxw-ctl` (bash, root via sudoers): `case` allowlist — actions `start|stop|restart|status|is-active` × units `bridge|brain|scheduler|sentinel|monitor.timer|purge.timer` → `systemctl <action> cxw-<unit>`; `backup` → `/srv/cxw/deploy/backup.sh`; `vacuum-journal` → `journalctl --vacuum-size=200M`. Anything else: exit 64 + `logger -t cxw-ctl "denied: $*"`. `SYSTEMCTL` env override only honored when `CXW_CTL_TEST=1` (for the bash test). Sudoers: `cxw ALL=(root) NOPASSWD: /usr/local/bin/cxw-ctl`, `Defaults!/usr/local/bin/cxw-ctl !requiretty`.
 **Sentinel** (`sentinel.ts`, service `cxw-sentinel`): long-running, no LLM. Every 5 s polls `messages` for rows with `ts > lastSeen` and (`from_me = 1` OR `sender ∈ owners`) whose trimmed lowercase text (optional `/`) is `panic` or `resume`; executes the kill switch even if the brain is dead or hung, and marks the message id as handled in `$CXW_STATE_DIR/sentinel.json` so the brain's own handler and the sentinel never double-fire (the brain handler also records the message id when given `messageId` in ctx). Sends the ack via bridge `/send` (owner only). Starts from `lastSeen = now` on boot (never replays history).
 
 ### D6. Commands (`commands.ts`)
+
 `handleOpsCommand(text, ctx)`: parse; non-owner → null; `status` → one-liner per check from `health.json` (age shown) + pause state + today's cost; `panic` → ack "🛑 Panic: scheduler and brain stopping. Send `resume` to restart." then trigger; `resume` → "▶️ Resumed." ; `purge` → runs purge (dry-run flag) and returns counts; `costs` → today/month lines; `costs unpause` → clears flag.
 
 ### D7. CLI (`cli.ts`, bin `cxw-ops`)
+
 `cxw-ops health [--json] [--no-alert]` (exit 1 if any check fails; prints heal actions as `HEAL <action>` lines for monitor.sh), `cxw-ops purge [--dry-run] [--emergency]`, `cxw-ops costs [today|month|line|check]`, `cxw-ops panic|resume|status`, `cxw-ops alert-test <text>`, `cxw-ops sentinel`.
 
 ### D8. monitor.sh (bash, runs as `cxw` via timer every 10 min)
+
 `set -euo pipefail`; source nothing (systemd loads env). Runs `cxw-ops health --json > $CXW_STATE_DIR/health.json` capturing `HEAL` lines. Self-heal with a restart budget: `$CXW_STATE_DIR/restart-budget.json` allows max 3 heals per unit per hour; beyond that it alerts "heal budget exhausted" via `cxw-ops alert-test` and stops healing. Heals: `restart bridge`, `restart brain` (never if panic flag), `purge --emergency` + `vacuum-journal`, `backup`. After a heal, re-run `cxw-ops health --no-alert` once after 20 s to log the outcome. Exit 0 always (timer must not go failed).
 
 ### D9. security-check.sh (bash, runs on the box; `--repo` mode runs the static parts locally)
+
 Checks and prints PASS/FAIL per line, exit 1 on any FAIL: env files `/srv/cxw/*.env` mode 0600 root:root; `ufw status` shows `Status: active`, default deny incoming, only the Tailscale interface allowed; no public listeners (`ss -tlnp` non-127.0.0.1/non-tailscale) ; pino redaction present (`grep -R "redact" apps/*/src packages/*/src` finds `paths` including phone/text keys); every `send_*`/`gmail_send`/`calendar_create_event` tool implementation references `confirm_token` (`grep -R` in `mcp/`; FAIL if a send tool file exists without it; SKIP if `mcp/` does not exist yet); sudoers file installed and `visudo -c` passes; `cxw-ctl` mode 0755 root:root; state dir owned by `cxw` 0700.
 
 ### D10. chaos.sh
+
 `chaos.sh --local` (Mac/dev, no root): creates a temp dir as `CXW_STATE_DIR`/`CXW_DATA_DIR`, starts `chaos/stub-services.mjs` (tiny node http servers for bridge on 17801, brain on 17802, google token stub on 17803 with a toggle file), points env at them, `ALERT_TRANSPORT=log`, `CXW_SUDO=""`, `CXW_CTL=chaos/fake-ctl.sh` (fake-ctl restarts the stub bridge by re-spawning it, records calls to a log). Scenarios, each with expected observations and an actual PASS/FAIL printed: (1) baseline all green; (2) kill bridge → health fails `whatsapp` → alert goes to email/telegram log channel (not WhatsApp) → monitor heals via fake-ctl → recovery alert; (3) unplug google → toggle stub to 401 → `google` fails → alert via WhatsApp channel → restore → recovery; (4) disk: `DISK_MIN_FREE_PCT=100` override → `disk` fails → heal `purge --emergency` runs against a seeded sqlite → recovery when override removed; (5) dedupe: run health three times while failing → exactly one alert. Prints a Markdown summary to stdout that C copies into `docs/runs/chaos-<date>.md`.
 `chaos.sh --box` (on Hetzner, root): real versions: `systemctl kill cxw-bridge`, `mv google.env google.env.chaos`, `fallocate -l <free-1GB> /srv/cxw/data/chaos.fill`; waits for the timer or runs monitor.sh directly; restores everything in a `trap` on exit. Requires `--i-know` flag.
 
 ### D11. Docs
+
 - `docs/RUNBOOK.md`: deploy (bootstrap → install-ops.sh → pair → verify), update (git pull, pnpm install, restart order bridge→brain→scheduler, sentinel), pairing (QR / pairing code, re-pair after logout), restore from restic (list snapshots, restore session+sqlite+media to /srv/cxw/data, fix perms, restart), rotate tokens (Google refresh token, Claude OAuth token / API key, SMTP, Telegram, restic password), panic/resume, purge, costs and cap, alerts and fallbacks, chaos test, common failures table.
 - `docs/ARCHITECTURE.md`: system diagram (from plan §2) + ops layer + contracts C1–C10 + data flow of an alert + state files table + security model.
 - `README.md`: append `## Operations` linking RUNBOOK, ARCHITECTURE, `cxw-ops` commands, WhatsApp commands.
 
 ## E. Steps
+
 1. A, B in parallel. A runs `pnpm install` inside `apps/ops` (creates its own lockfile) and `pnpm test`. B runs `bash deploy/hetzner/test/cxw-ctl.test.sh` and `bash -n` on every script, `shellcheck` if available.
 2. Reviewer on A+B diff; fix loop.
 3. Orchestrator runs `deploy/hetzner/chaos.sh --local`; C writes docs incl. the chaos run result.
@@ -181,10 +198,12 @@ Checks and prints PASS/FAIL per line, exit 1 on any FAIL: env files `/srv/cxw/*.
 5. Final report.
 
 ## F. Tests
+
 - vitest in `apps/ops/test`: alerts reconcile state machine (first alert, dedupe, repeat after interval, recovery), retention against temp sqlite + temp media dir (owner rows preserved, third-party purged, emergency only media, dry-run touches nothing), costs (pricing, cap warn once, pause flag, month rollover, `total_cost_usd` passthrough), health with stub servers spun in-test and `DISK_MIN_FREE_PCT` overrides, killswitch order + allowlist + fake ctl, commands (non-owner null, each command), sentinel matching + dedupe.
 - bash: `cxw-ctl` allowlist test with `CXW_CTL_TEST=1 SYSTEMCTL=echo`.
 
 ## G. Out of scope
+
 - Anything under `apps/bridge`, `apps/brain`, `apps/scheduler`, `mcp/`, `packages/`, `workspace/`, `vault/`, root config files, `deploy/hetzner/bootstrap.sh`, `backup.sh`, `restore.sh`, other systemd units. Never run `git init`/commit/checkout. Never modify `docs/IMPLEMENTATION_PLAN.md`.
 
 ## H. Amendments after scouting the skeleton (2026-09-03, supersede earlier lines where they conflict)
@@ -199,3 +218,35 @@ Checks and prints PASS/FAIL per line, exit 1 on any FAIL: env files `/srv/cxw/*.
 - **Unit names on this branch:** `cxw-bridge`, `cxw-brain`, `cxw-scheduler`, `cxw-backup.service` (+timer), `cxw-monitor.timer`, `cxw-purge.timer`, `cxw-sentinel`. `cxw-ctl` allowlist units: `bridge|brain|scheduler|sentinel|backup|monitor.timer|purge.timer|backup.timer`.
 - **Tests location:** package-local (`apps/ops/test/**`, run by `apps/ops`'s own `vitest.config.ts`). The root `vitest.config.ts` only globs `tests/**` and is not touched.
 - **Model ids:** the skeleton uses `claude-haiku-4-5-20251001` as fast model; pricing must match by prefix (`claude-haiku-4-5`).
+
+## I. Interface addendum (2026-09-03, after scouting sibling phase plans; supersedes B/C/D where they conflict)
+
+Facts from the sibling worktrees (phase-1-bridge, phase-2-brain, phase-5-routines): nothing runnable exists yet except `packages/shared` in phase-2 (pino logger with redact paths `jid, chatJid, senderJid, targetJid, remoteJid, text, body, caption, preview` and their `*.` forms, censor `[redacted]`; `loadOwners` expects `{ "owners": [...] }` where each entry is a full JID or bare digits). The Phase 1 plan fixes these contracts, which ops must accept:
+
+- **Bridge `GET /health`** → `{ ok, connected, selfJid, uptimeSec, sentToday, dailyCap }`. Ops reads `ok` and `connected` only; tolerate `jid`/`selfJid` and `uptime_s`/`uptimeSec`. WhatsApp is "connected" iff `ok === true && connected === true`.
+- **Bridge `POST /send`** body `{ jid, text }`; header `Authorization: Bearer <BRIDGE_TOKEN>` when env `BRIDGE_TOKEN` is set. Success = HTTP 2xx and (if JSON) `ok !== false`.
+- **`messages.ts` is unix seconds** (Phase 1). Keep the "if `ts` < 1e12 treat as seconds" rule so ms also works. Primary key `(jid, id)`. Optional table `media(jid, msg_id, path, mime, size, downloaded_at)`; when present, purge deletes its rows for removed files. FTS table `messages_fts` with content='messages' and triggers; after bulk delete run `INSERT INTO messages_fts(messages_fts) VALUES('rebuild')` in try/catch.
+- **Owners file**: `{ "owners": [...] }` or bare array; entries may be full JIDs or bare digits (normalize digits to `<digits>@s.whatsapp.net`); `@g.us` never owners; `OWNER_JIDS` env adds more.
+- **SQLite driver**: use Node's built-in `node:sqlite` (`DatabaseSync`), NOT `better-sqlite3`. Reason: pnpm 10 blocks native build scripts unless root `package.json` lists `onlyBuiltDependencies`, and root files belong to Phase 0. Node ≥ 22.13 (box and dev both run 22.23). Suppress the ExperimentalWarning for sqlite via `process.removeAllListeners('warning')`-style filter in `cli.ts` only (keep library code clean). `@types/node ^22` ships the types.
+- **Package layout**: `apps/ops/tsconfig.json` = `{ "extends": "../../tsconfig.base.json", "compilerOptions": { "rootDir": ".", "outDir": "dist", "noEmit": true }, "include": ["src/**/*.ts", "test/**/*.ts", "vitest.config.ts"] }` so tests are type-checked under the strict flags. Scripts: `start` = `tsx src/cli.ts sentinel`, `typecheck` = `tsc --noEmit -p tsconfig.json`, `build` = `tsc -p tsconfig.json --noEmit false --outDir dist`, `test` = `vitest run`, `lint` not needed (root eslint covers `apps/**`). `bin/cxw-ops.js` imports `../dist/src/cli.js`. Deps: `pino ^9`, `zod ^4`, `nodemailer ^7`; devDeps `@types/nodemailer`, `tsx`, `typescript`, `vitest` (same ranges as root). Root ESLint rules apply: `consistent-type-imports` (use `import type`), unused args prefixed `_`; prettier single quotes, 100 cols, trailing commas. Run from the worktree root: `pnpm install` (updates `pnpm-lock.yaml`, expected), `pnpm --filter @cxw/ops typecheck`, `pnpm --filter @cxw/ops test`, `pnpm exec eslint apps/ops`, `pnpm exec prettier --write apps/ops`.
+- **Extra env**: `CXW_CLAUDE_BIN` (default `claude`) for the deep auth check; `CXW_OPS_BIN` (default `/usr/local/bin/cxw-ops`) used by the shell scripts; `CXW_HEAL_RECHECK_S` (default `20`) delay before the post-heal re-check in monitor.sh; `BRIDGE_TOKEN` as above; `CXW_GOOGLE_CHECK=off` skips the google check (ok=true, detail `disabled`).
+
+### I1. `cxw-ops` CLI contract (the boundary between Implementer A and B — both must follow it exactly)
+
+- `cxw-ops health [--json] [--no-alert]` — runs all checks, always writes `$CXW_STATE_DIR/health.json`, reconciles and delivers alerts unless `--no-alert`. Exit 0 when every check is ok, else 1 (delivery errors never change the exit code; they are logged). Text mode prints one line per check `OK <name> - <detail>` or `FAIL <name> - <detail>`, then one `HEAL <action>` line per failing check that has a heal action (dedupe identical actions). `--json` prints a single JSON object `{ ts, ok, checks: [{ name, ok, detail, healAction }], heals: [<action>] }` and nothing else on stdout. Heal action strings are exactly: `restart bridge`, `restart brain`, `purge --emergency`, `backup`. The `restart brain` heal is never emitted while `$CXW_STATE_DIR/panic` exists (the brain check then reports ok=false, detail `panic mode, expected down`, and is excluded from alerts).
+- `cxw-ops alert-test <text...>` — sends the joined text through the delivery chain (WhatsApp first if the last `health.json` says whatsapp ok, else email, then Telegram); exit 0 if at least one channel accepted it. In `CXW_ALERT_TRANSPORT=log` mode every channel "accepts" and prints `[alert:<channel>] <text>` to stdout, where channel ∈ `whatsapp|email|telegram`.
+- `cxw-ops purge [--dry-run] [--emergency]` — prints one JSON line `{ dryRun, emergency, textRows, mediaRows, files, bytes }`; exit 0.
+- `cxw-ops costs [today|month|line|check]` — `today`/`month` print totals JSON, `line` prints the daily cost line (C8 format), `check` runs `checkCap()` and prints any warning text; default = `line`.
+- `cxw-ops panic [reason]`, `cxw-ops resume`, `cxw-ops status` (same text the WhatsApp `status` command returns), `cxw-ops sentinel` (long-running).
+- Alert delivery in log mode prints exactly one `[alert:<channel>]` line per delivered batch; the batch text joins alerts with `\n`.
+- Alert state dedupe: while a check keeps failing, no second alert before `CXW_ALERT_REPEAT_MIN` minutes.
+
+### I2. Shell-side contract (Implementer B)
+
+- All scripts read `CXW_OPS_BIN`, `CXW_CTL`, `CXW_SUDO` (may be the empty string), `CXW_STATE_DIR`, `CXW_HEAL_RECHECK_S`. Invoke the helper as `$CXW_SUDO $CXW_CTL <action> <unit>` (word-split on purpose; add `# shellcheck disable=SC2086` at that line).
+- `monitor.sh`: runs `"$CXW_OPS_BIN" health > "$tmp"` (text mode), parses `^HEAL ` lines, applies the restart budget (max 3 heals per action per hour, kept in `$CXW_STATE_DIR/restart-budget.log` as lines `<epoch> <action>` — plain text so it works with awk on bash 3.2), performs heals (`restart bridge` → ctl restart bridge; `restart brain` → ctl restart brain unless `$CXW_STATE_DIR/panic` exists; `purge --emergency` → `"$CXW_OPS_BIN" purge --emergency` then ctl `vacuum-journal`; `backup` → ctl `backup`), sleeps `CXW_HEAL_RECHECK_S`, re-runs `"$CXW_OPS_BIN" health --no-alert`, writes `$CXW_STATE_DIR/monitor.status` (`ok <utc>` or `fail <utc>` + lines), calls `logger -t cxw-monitor` only when `logger` exists, keeps the Phase 0 tailscale/ufw/timer checks only when `systemctl`/`ufw`/`tailscale` exist. When the budget is exhausted it calls `"$CXW_OPS_BIN" alert-test "heal budget exhausted for <action>"`. Always exits 0.
+- **Portability**: `chaos.sh --local` and `monitor.sh` run on macOS bash 3.2 as well as Ubuntu: no `mapfile`, no `declare -A`, no `${var,,}`, no `date -d`, no `df --output`. Everything else may assume bash ≥ 4 only if guarded.
+- `chaos/cxw-ops-local.sh`: wrapper for local runs: `exec "$REPO/node_modules/.bin/tsx" "$REPO/apps/ops/src/cli.ts" "$@"` where `REPO` is derived from the script path. chaos.sh exports `CXW_OPS_BIN` to it.
+- `chaos/stub-services.mjs` (plain ESM JS, no deps): bridge on `STUB_BRIDGE_PORT` (17801): `GET /health` → `{ ok: true, connected: true, selfJid: '…000@s.whatsapp.net', uptimeSec }`, `POST /send` → appends the JSON body to `STUB_LOG` and returns `{ ok: true, ids: ['stub'] }`; brain on 17802: `GET /health` → `{ ok: true, sessions: 0 }`; google token stub on 17803: `POST /token` → 200 `{ access_token: 'stub', expires_in: 3600, token_type: 'Bearer' }` unless the file `STUB_GOOGLE_FAIL` exists → 401 `{ error: 'invalid_grant' }`. Each stub can be started individually via `--only bridge|brain|google` so `fake-ctl.sh restart bridge` can respawn just the bridge and write its pid to `$STUB_DIR/bridge.pid`.
+- chaos env: `BRIDGE_URL=http://127.0.0.1:17801`, `BRAIN_URL=http://127.0.0.1:17802`, `CXW_GOOGLE_TOKEN_URL=http://127.0.0.1:17803/token`, `GOOGLE_CLIENT_ID=stub GOOGLE_CLIENT_SECRET=stub GOOGLE_REFRESH_TOKEN=stub`, `SMTP_HOST=smtp.invalid ALERT_EMAIL_FROM=a@b ALERT_EMAIL_TO=c@d`, `TELEGRAM_ALERTS=false`, `CXW_ALERT_TRANSPORT=log`, `CXW_ALERT_REPEAT_MIN=999`, `CXW_ALERT_AFTER_FAILURES=1`, `CXW_CLAUDE_AUTH_DEEP_CHECK_MIN=0`, `CLAUDE_CODE_OAUTH_TOKEN=stub`, `CXW_BACKUP_MAX_AGE_H=8` with a fresh `last-backup` marker, `CXW_HEAL_RECHECK_S=2`, `CXW_SUDO=""`, `CXW_CTL=<abs path>/chaos/fake-ctl.sh`, owners file with `{ "owners": ["10000000000@s.whatsapp.net"] }`, `CXW_ALERT_WHATSAPP_JID` unset (defaults to first owner). Disk scenario uses `CXW_DISK_LIMIT_PCT=0` (used ≥ 0 always fails).
+- Scenario PASS criteria (grep the captured stdout): (1) `health` exit 0 and no `[alert:` line; (2) after killing the bridge: a `[alert:email]` line containing `whatsapp FAILING`, no `[alert:whatsapp]` line for it, `HEAL restart bridge` present, fake-ctl log has `restart bridge`, and the monitor's re-check plus one more `health` run yields `[alert:whatsapp]` with `whatsapp recovered`; (3) google toggle: `[alert:whatsapp]` with `google FAILING`, then `google recovered`; (4) disk: `HEAL purge --emergency`, purge JSON shows `mediaRows`≥1 against the seeded sqlite (seed 3 third-party media rows older than 14 days with files on disk, 1 owner row that must survive), then recovery; (5) dedupe: three consecutive failing `health` runs produce exactly one `[alert:` line.
