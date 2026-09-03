@@ -2,7 +2,7 @@
   "name": "@cxw/mcp-google",
   "version": "0.0.1",
   "private": true,
-  "description": "MCP server for Gmail and Calendar.",
+  "description": "MCP server for Gmail, Calendar and Contacts, with the owner confirm gate.",
   "type": "module",
   "exports": {
     ".": "./src/index.ts"
@@ -10,11 +10,16 @@
   "scripts": {
     "start": "tsx src/index.ts",
     "dev": "tsx watch src/index.ts",
+    "auth": "tsx src/auth.ts",
+    "token-check": "tsx src/token-check.ts",
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "tsc -p tsconfig.json --noEmit false --outDir dist",
     "test": "vitest run --passWithNoTests"
   },
   "dependencies": {
-    "@cxw/shared": "workspace:*"
+    "@cxw/shared": "workspace:*",
+    "@modelcontextprotocol/sdk": "^1.30.0",
+    "googleapis": "^178.0.0",
+    "zod": "^4.5.4"
   }
 }

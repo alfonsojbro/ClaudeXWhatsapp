@@ -179,3 +179,72 @@ ssh root@cxw 'cd /srv/cxw/repo && sudo -u cxw -H git pull --ff-only && sudo -u c
 - [ ] `backup.sh` completes; `restic snapshots` lists one snapshot; `cxw-backup.timer` is active.
 - [ ] `restore.sh latest` restores to a scratch folder and the diff against live data is empty.
 - [ ] `monitor.sh` prints `ok` (or lists only "bridge /health" until Phase 1).
+
+## 8. Google OAuth (Phase 4)
+
+The box never runs a browser. You authorise once on the Mac, and copy the resulting
+refresh token to `/srv/cxw/google.env`.
+
+### 8.1 Google Cloud, once
+
+1. <https://console.cloud.google.com> → create a project (e.g. `cxw-assistant`).
+2. **APIs & Services → Library** → enable **Gmail API**, **Google Calendar API**,
+   **People API**.
+3. **APIs & Services → OAuth consent screen** → User type **External** → fill in app
+   name and your own e-mail → add yourself under **Test users**.
+4. **Publish the consent screen to Production.** This matters. An unverified app is
+   fine for one personal account (you will click through a "Google hasn't verified
+   this app" warning once), but while the screen stays in **Testing** Google expires
+   refresh tokens **after 7 days**, and the assistant silently loses Gmail and
+   Calendar until you notice. Production tokens do not expire on a timer.
+5. **Credentials → Create credentials → OAuth client ID → Application type: Desktop
+   app** → download the JSON (`client_secret_….json`).
+
+Scopes requested (exactly three, see `mcp/google/src/scopes.ts`):
+`gmail.modify`, `calendar`, `contacts.readonly`.
+
+### 8.2 Authorise on the Mac
+
+```bash
+pnpm google:auth --client-secret ~/Downloads/client_secret_XXXX.json
+```
+
+It opens the consent screen, catches the callback on `127.0.0.1`, and writes
+`./google.env` with mode `0600` (`--out <file>` to change it, `--force` to overwrite,
+`--no-open` to print the URL instead of opening a browser).
+
+If it reports "Google returned no refresh token": revoke the app at
+<https://myaccount.google.com/permissions> and run it again.
+
+### 8.3 Copy it to the box
+
+```bash
+scp google.env root@cxw:/srv/cxw/google.env
+ssh root@cxw 'chown root:root /srv/cxw/google.env && chmod 0600 /srv/cxw/google.env && systemctl restart cxw-brain'
+```
+
+`cxw-brain.service` reads it with `EnvironmentFile=-/srv/cxw/google.env` (the dash
+makes it optional, so the brain still starts before Phase 4 is deployed).
+
+### 8.4 Verify
+
+```bash
+ssh root@cxw 'set -a; . /srv/cxw/google.env; set +a; cd /srv/cxw/repo && sudo -u cxw -H pnpm --filter @cxw/mcp-google token-check'
+```
+
+`{"ok": true, …}` and exit 0. Exit 1 means the token is dead, exit 2 means the file is
+incomplete. `monitor.sh` runs the same check every 10 minutes once `google.env` exists.
+
+### 8.5 Rotate or revoke
+
+Re-run 8.2, replace the file as in 8.3, restart `cxw-brain`. To revoke entirely:
+<https://myaccount.google.com/permissions>, then delete `/srv/cxw/google.env`.
+
+### 8.6 Phase 4 acceptance checklist
+
+- [ ] `pnpm --filter @cxw/mcp-google token-check` prints `"ok": true` on the box.
+- [ ] "What's on tomorrow?" answers from the real calendar.
+- [ ] "Reply to Ana's mail: I'll be there" returns a preview plus a token and sends
+      nothing; `yes <TOKEN>` sends it; the same token a second time is refused.
+- [ ] An event with an outside attendee asks before inviting; one with only you does not.
+- [ ] `monitor.sh` still prints `ok`.

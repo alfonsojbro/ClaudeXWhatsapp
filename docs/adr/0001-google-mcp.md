@@ -35,7 +35,7 @@ What failed or does not fit:
    else can mint tokens"). Phase 7's security pass also greps `mcp/` for `confirm_token` in every send tool.
 2. **Headless verification incomplete.** With a seeded credential file whose refresh token is invalid
    the first tool call fell back to the interactive flow: it tried to open a browser and returned an
-   authorization URL with a `localhost:8000` redirect. With a *valid* token this path is not taken, but
+   authorization URL with a `localhost:8000` redirect. With a _valid_ token this path is not taken, but
    the fallback means a token problem on the box degrades into a hang waiting for a browser instead of
    a clean error the health monitor can act on.
 3. **Scopes are the server's, not ours.** It requests ~14 scopes (readonly + modify + compose + send +

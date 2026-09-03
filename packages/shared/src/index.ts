@@ -35,3 +35,5 @@ export function serviceInfo(service: ServiceName, now: Date = new Date()): Servi
 export function banner(info: ServiceInfo): string {
   return `${info.project}/${info.service} started (node ${info.node}) at ${info.startedAt}`;
 }
+
+export * from './confirm.js';
