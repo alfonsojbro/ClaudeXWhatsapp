@@ -1,0 +1,10 @@
+# /etc/sudoers.d/cxw-ctl — install 0440 root:root (install-ops.sh does this).
+# The cxw user may run exactly one privileged helper, which itself allowlists its arguments.
+cxw ALL=(root) NOPASSWD: /usr/local/bin/cxw-ctl
+# env_reset drops the caller's environment, so CXW_CTL_TEST / SYSTEMCTL / JOURNALCTL /
+# PATH from a compromised `cxw` process cannot reach the root run. The helper itself sets
+# PATH=/usr/sbin:/usr/bin:/sbin:/bin and execs systemctl and journalctl by absolute path,
+# so no `secure_path` is declared here (a per-command Defaults secure_path is not honoured
+# by every sudo build, and the helper must not depend on it).
+Defaults!/usr/local/bin/cxw-ctl env_reset
+Defaults!/usr/local/bin/cxw-ctl !requiretty

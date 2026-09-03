@@ -1,0 +1,12 @@
+[Unit]
+Description=Run the ClaudeXWhatsapp retention purge daily at 03:30
+
+[Timer]
+OnCalendar=*-*-* 03:30:00
+Persistent=true
+RandomizedDelaySec=5min
+AccuracySec=1min
+Unit=cxw-purge.service
+
+[Install]
+WantedBy=timers.target
