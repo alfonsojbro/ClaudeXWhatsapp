@@ -12,12 +12,14 @@
   "scripts": {
     "prepare": "git config core.hooksPath .githooks || true",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "pnpm -r test && pnpm run test:root",
+    "test:root": "vitest run --passWithNoTests",
     "build": "pnpm -r build",
     "lint": "eslint .",
     "format": "prettier --write .",
     "format:check": "prettier --check .",
-    "check-secrets": "scripts/check-secrets.sh --all"
+    "check-secrets": "scripts/check-secrets.sh --all",
+    "google:auth": "pnpm --filter @cxw/mcp-google auth"
   },
   "devDependencies": {
     "@eslint/js": "^9.39.0",

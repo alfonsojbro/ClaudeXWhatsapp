@@ -16,5 +16,11 @@
       "@cxw/scheduler": ["./apps/scheduler/src/index.ts"]
     }
   },
-  "include": ["packages/**/*.ts", "mcp/**/*.ts", "apps/**/*.ts", "tests/**/*.ts", "vitest.config.ts"]
+  "include": [
+    "packages/**/*.ts",
+    "mcp/**/*.ts",
+    "apps/**/*.ts",
+    "tests/**/*.ts",
+    "vitest.config.ts"
+  ]
 }

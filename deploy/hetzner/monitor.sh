@@ -49,6 +49,14 @@ if systemctl is-enabled --quiet cxw-bridge 2>/dev/null && systemctl is-active --
   fi
 fi
 
+# google refresh token (Phase 4; skipped until google.env exists)
+if [[ -r "$CXW_ROOT/google.env" ]]; then
+  # shellcheck source=/dev/null
+  if ! ( set -a; . "$CXW_ROOT/google.env"; set +a; cd "$CXW_ROOT/repo" && timeout 30 pnpm --silent --filter @cxw/mcp-google token-check --quiet ) >/dev/null 2>&1; then
+    note "google refresh token check failed (re-run pnpm google:auth on the Mac)"
+  fi
+fi
+
 mkdir -p "$(dirname "$STATUS_FILE")"
 if [[ ${#problems[@]} -eq 0 ]]; then
   echo "ok $(date -u +%FT%TZ)" > "$STATUS_FILE"

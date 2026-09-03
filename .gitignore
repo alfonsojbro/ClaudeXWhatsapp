@@ -36,3 +36,9 @@ vault/runs/**
 .DS_Store
 .idea/
 .vscode/
+
+# git worktrees used by parallel sessions
+.worktrees/
+
+# per-task implementer audits: working notes, not part of the record
+feature-research/**/audit.md

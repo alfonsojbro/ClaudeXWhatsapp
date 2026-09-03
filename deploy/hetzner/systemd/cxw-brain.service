@@ -11,6 +11,7 @@ User=cxw
 Group=cxw
 WorkingDirectory=/srv/cxw/repo
 EnvironmentFile=/srv/cxw/cxw.env
+EnvironmentFile=-/srv/cxw/google.env
 Environment=NODE_ENV=production
 Environment=HOME=/home/cxw
 ExecStart=/usr/bin/pnpm --filter @cxw/brain start

@@ -10,6 +10,6 @@
   "scripts": {
     "typecheck": "tsc --noEmit -p tsconfig.json",
     "build": "tsc -p tsconfig.json --noEmit false --outDir dist",
-    "test": "vitest run --passWithNoTests"
+    "test": "vitest run"
   }
 }
