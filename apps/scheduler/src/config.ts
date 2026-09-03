@@ -98,8 +98,8 @@ const schema = z.object({
   GOOGLE_CLIENT_ID: optionalString(),
   GOOGLE_CLIENT_SECRET: optionalString(),
   GOOGLE_REFRESH_TOKEN: optionalString(),
-  ANTHROPIC_API_KEY: optionalString(),
-  CLAUDE_CODE_OAUTH_TOKEN: optionalString(),
+  ANTHROPIC_API_KEY: optionalString(), // check-secrets: allow (name, not a value)
+  CLAUDE_CODE_OAUTH_TOKEN: optionalString(), // check-secrets: allow (name, not a value)
 });
 
 function isValidTimeZone(tz: string): boolean {
