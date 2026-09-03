@@ -1,0 +1,17 @@
+{
+  "name": "@cxw/console",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Console JSON API: read-mostly state of the assistant, loopback only.",
+  "type": "module",
+  "exports": {
+    ".": "./src/main.ts"
+  },
+  "scripts": {
+    "start": "tsx src/main.ts",
+    "dev": "tsx watch src/main.ts",
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --noEmit false --outDir dist",
+    "test": "vitest run --passWithNoTests"
+  }
+}

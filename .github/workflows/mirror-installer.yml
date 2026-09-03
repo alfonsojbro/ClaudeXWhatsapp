@@ -1,0 +1,86 @@
+# Publish apps/installer to a small public repository.
+#
+# Why a mirror and not a public main repo: Cloudflare's "Deploy to Cloudflare" button
+# clones the git URL anonymously, so the installer has to be public. This repository
+# holds the vault, the deploy scripts and the runbook, and making any of it public is a
+# one-way door because the history goes with it. The mirror is reversible: delete one
+# repository.
+#
+# INERT UNTIL SET UP. The workflow checks for the MIRROR_TOKEN secret and exits cleanly
+# with a message when it is absent, so it never fails a build. The one-time steps are:
+#   1. Create the public repository alfonsojbro/cxw-installer (empty, no README).
+#   2. Create a fine-grained personal access token with Contents: write on that
+#      repository only.
+#   3. Add it to this repository as the Actions secret MIRROR_TOKEN.
+# Nothing in this commit creates the repository or the token.
+
+name: mirror-installer
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'apps/installer/**'
+      - '.github/workflows/mirror-installer.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: mirror-installer
+  cancel-in-progress: true
+
+env:
+  MIRROR_REPO: alfonsojbro/cxw-installer
+  MIRROR_BRANCH: main
+
+jobs:
+  mirror:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check whether the mirror is set up
+        id: gate
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          if [ -z "${MIRROR_TOKEN:-}" ]; then
+            echo "MIRROR_TOKEN is not set, so the public mirror is not configured yet."
+            echo "This is expected until the public repository and its token exist."
+            echo "See the header of this workflow for the one-time steps."
+            echo "ready=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "ready=true" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Check out this repository
+        if: steps.gate.outputs.ready == 'true'
+        uses: actions/checkout@v4
+
+      - name: Build the mirror tree
+        if: steps.gate.outputs.ready == 'true'
+        run: |
+          set -euo pipefail
+          MIRROR_DIR="$RUNNER_TEMP/mirror"
+          rm -rf -- "$MIRROR_DIR"
+          mkdir -p "$MIRROR_DIR"
+          cp -R apps/installer/. "$MIRROR_DIR"/
+          # Never publish build output or installed dependencies.
+          rm -rf -- "$MIRROR_DIR/public/assets" "$MIRROR_DIR/node_modules"
+          ls -la "$MIRROR_DIR"
+
+      - name: Push the subtree to the public repository
+        if: steps.gate.outputs.ready == 'true'
+        env:
+          MIRROR_TOKEN: ${{ secrets.MIRROR_TOKEN }}
+        run: |
+          set -euo pipefail
+          cd "$RUNNER_TEMP/mirror"
+          git init -q -b "$MIRROR_BRANCH"
+          git config user.name "cxw-mirror"
+          git config user.email "noreply@users.noreply.github.com"
+          git add -A
+          git commit -q -m "mirror: apps/installer at ${GITHUB_SHA}"
+          git remote add origin "https://x-access-token:${MIRROR_TOKEN}@github.com/${MIRROR_REPO}.git"
+          # The mirror is a snapshot, not a history: force-push one commit.
+          git push --force origin "$MIRROR_BRANCH"

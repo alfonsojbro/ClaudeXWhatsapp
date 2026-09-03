@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <meta name="robots" content="noindex" />
+    <title>Set up your assistant</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main>
+      <h1>Set up your assistant</h1>
+      <p class="lede">
+        This creates your server, puts it behind a private login on your own domain, and hands you the
+        rest of the setup in a browser. About five minutes, most of it waiting for the machine to boot.
+      </p>
+
+      <form id="form" class="card" autocomplete="off">
+        <label>
+          <span class="name">Your domain</span>
+          <input type="text" id="domain" placeholder="example.com" required />
+          <span class="note">Must already be a site on your Cloudflare account. The assistant will live at cxw.&lt;domain&gt;.</span>
+        </label>
+
+        <label>
+          <span class="name">Your email</span>
+          <input type="email" id="ownerEmail" placeholder="you@example.com" required />
+          <span class="note">The only address allowed through the login.</span>
+        </label>
+
+        <label>
+          <span class="name">Cloudflare API token</span>
+          <input type="password" id="cfToken" required />
+          <span class="note">
+            Used once from this page and your own Pages Function. It is never stored, here or anywhere.
+            Needs Zone:Read, DNS:Edit, Cloudflare Tunnel:Edit and Access: Apps and Policies:Edit.
+            <a href="https://dash.cloudflare.com/profile/api-tokens" target="_blank" rel="noreferrer">Create one</a>.
+          </span>
+        </label>
+
+        <label>
+          <span class="name">Where to put the server</span>
+          <select id="provider">
+            <option value="hetzner">Hetzner (one click)</option>
+            <option value="manual">Any other server</option>
+          </select>
+        </label>
+
+        <div id="hetznerFields">
+          <label>
+            <span class="name">Hetzner Cloud API token</span>
+            <input type="password" id="hzToken" />
+            <span class="note">
+              Used once from this page and your own Pages Function. It is never stored, here or anywhere.
+              Read and write, for one project.
+              <a href="https://console.hetzner.cloud/" target="_blank" rel="noreferrer">Hetzner Cloud console</a>.
+            </span>
+          </label>
+        </div>
+
+        <label>
+          <span class="name">Repository</span>
+          <input type="text" id="repoUrl" value="git@github.com:alfonsojbro/claudexwhatsapp.git" required />
+          <span class="note">The SSH URL of your own copy. A deploy key for it is generated below.</span>
+        </label>
+
+        <label>
+          <span class="name">Branch</span>
+          <input type="text" id="branch" value="main" required />
+        </label>
+
+        <label>
+          <span class="name">Time zone</span>
+          <input type="text" id="timezone" required />
+          <span class="note">Used for the daily routines.</span>
+        </label>
+
+        <label>
+          <span class="name">Tailscale auth key (optional)</span>
+          <input type="password" id="tsKey" />
+          <span class="note">
+            Used once from this page and your own Pages Function. It is never stored, here or anywhere.
+            Reusable off, tagged <code>tag:cxw</code>. Without it you can still reach the box only through
+            the login; SSH needs this.
+          </span>
+        </label>
+
+        <div class="row">
+          <button type="submit" id="generate">Generate the deploy key</button>
+        </div>
+      </form>
+
+      <section id="keyCard" class="card" hidden>
+        <h2>Add this deploy key to your repository</h2>
+        <p>Paste it as a deploy key. Read-only is enough. Nothing continues until you confirm.</p>
+        <pre class="wrap" id="publicKey"></pre>
+        <p class="note" id="fingerprint"></p>
+        <div class="row">
+          <button type="button" class="secondary" data-copy="publicKey">Copy the key</button>
+          <a id="deployKeysLink" target="_blank" rel="noreferrer">Open the deploy-keys page</a>
+        </div>
+        <p style="margin-top: 14px">
+          <label style="margin: 0">
+            <input type="checkbox" id="keyConfirmed" /> I added this key to the repository.
+          </label>
+        </p>
+        <div class="row">
+          <button type="button" id="start" disabled>Start</button>
+        </div>
+      </section>
+
+      <section id="progressCard" class="card" hidden>
+        <h2>Progress</h2>
+        <ul class="steps" id="steps"></ul>
+        <p id="summary"></p>
+        <div class="row">
+          <a id="continueLink" hidden><button type="button">Continue setup</button></a>
+        </div>
+      </section>
+
+      <section id="manualCard" class="card" hidden>
+        <h2>Create the server yourself</h2>
+        <p>
+          Two ways. Either works, and everything after it is the same. Ubuntu 24.04, at least 4 GB of RAM.
+        </p>
+
+        <h2>A new server anywhere</h2>
+        <p>Paste this into the provider's &ldquo;user data&rdquo; or &ldquo;cloud config&rdquo; field.</p>
+        <pre id="cloudInit"></pre>
+        <div class="row"><button type="button" class="secondary" data-copy="cloudInit">Copy the payload</button></div>
+        <p class="note">Known to work as-is:</p>
+        <ul class="providers" id="knownGood"></ul>
+
+        <h2>A server that already exists</h2>
+        <p>Run this once as root over SSH. It is one line, and it downloads no script from anyone.</p>
+        <pre class="wrap" id="sshCommand"></pre>
+        <div class="row"><button type="button" class="secondary" data-copy="sshCommand">Copy the command</button></div>
+
+        <h2>About the firewall</h2>
+        <p class="note" id="firewallNote"></p>
+      </section>
+    </main>
+
+    <!--
+      No bundler. `pnpm --filter @cxw/installer build` runs tsc into public/assets/,
+      and app.js imports the emitted browser entry point from there.
+    -->
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

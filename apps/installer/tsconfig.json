@@ -1,0 +1,9 @@
+{
+  "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "rootDir": ".",
+    "outDir": "public/assets",
+    "noEmit": true
+  },
+  "include": ["src/**/*.ts", "functions/**/*.ts"]
+}

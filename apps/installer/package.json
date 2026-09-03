@@ -1,0 +1,15 @@
+{
+  "name": "@cxw/installer",
+  "version": "0.0.1",
+  "private": true,
+  "description": "Browser installer: creates the Hetzner box, the Cloudflare tunnel, DNS and Access, then hands over to the on-box setup wizard.",
+  "type": "module",
+  "exports": {
+    ".": "./src/index.ts"
+  },
+  "scripts": {
+    "typecheck": "tsc --noEmit -p tsconfig.json",
+    "build": "tsc -p tsconfig.json --noEmit false --outDir public/assets",
+    "test": "vitest run"
+  }
+}

@@ -57,6 +57,10 @@ importers:
         specifier: workspace:*
         version: link:../../packages/shared
 
+  apps/console: {}
+
+  apps/installer: {}
+
   apps/scheduler:
     dependencies:
       '@cxw/shared':
