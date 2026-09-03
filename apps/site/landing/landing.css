@@ -216,3 +216,30 @@ footer{padding:30px 0 44px;color:var(--muted);font-size:14px}
 footer .wrap{display:flex;flex-wrap:wrap;gap:10px 26px;align-items:center;justify-content:space-between}
 footer a{color:var(--muted);text-decoration:none;border-bottom:1px solid transparent}
 footer a:hover{color:var(--ink);border-color:var(--wa)}
+
+/* ---------- the setup page ---------- */
+.page-head{padding:56px 0 8px}
+.page-head h1{font-family:var(--display);font-weight:700;font-size:clamp(30px,4vw,44px);line-height:1.06}
+.page-head p{color:var(--muted);font-size:19px;max-width:60ch;margin-top:14px}
+.crumb{display:inline-block;font-family:var(--mono);font-size:12.5px;color:var(--muted);
+  text-decoration:none;border-bottom:1px solid transparent;margin-bottom:18px}
+.crumb:hover{color:var(--ink);border-color:var(--wa)}
+.flag{border:1px solid var(--warn);background:var(--warn-soft);border-radius:var(--r);
+  padding:16px 18px;margin-top:26px;max-width:74ch}
+.flag h3{font-size:17px;font-weight:700;color:var(--ink)}
+.flag p{color:var(--ink);opacity:.82;font-size:15.5px;margin-top:6px}
+.cmd{display:block;font-family:var(--mono);font-size:13px;line-height:1.7;color:var(--ink);
+  background:var(--sunk);border:1px solid var(--line);border-radius:var(--r);
+  padding:12px 14px;margin-top:10px;overflow-x:auto;white-space:pre}
+.groups{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;margin-top:28px}
+.group.wide{grid-column:span 2}
+.group{background:var(--surface);border:1px solid var(--line);border-radius:var(--r);padding:20px}
+.group h3{font-size:16px;font-weight:700;margin-bottom:4px}
+.group .on{font-family:var(--mono);font-size:11px;letter-spacing:.06em;text-transform:uppercase;
+  color:var(--muted);display:block;margin-bottom:10px}
+.group ol{margin:0;padding-left:19px;color:var(--muted);font-size:15px}
+.group li{margin:7px 0}
+@media (max-width:860px){.groups{grid-template-columns:1fr}.group.wide{grid-column:span 1}}
+.after{margin-top:28px;max-width:70ch}
+.after p{color:var(--muted);font-size:16.5px}
+.after p + p{margin-top:10px}
