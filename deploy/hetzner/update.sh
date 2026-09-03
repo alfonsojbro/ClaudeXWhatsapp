@@ -43,9 +43,17 @@ if [[ $units_changed -eq 1 ]]; then
   echo "update: systemd units changed, reinstalling"
   install -m 0644 "${units[@]}" /etc/systemd/system/
   systemctl daemon-reload
-  # Enable anything new; already-enabled units are untouched.
-  for u in "${units[@]}"; do systemctl enable "$(basename "$u")" >/dev/null; done
-  systemctl restart cxw-backup.timer cxw-monitor.timer
+  # Enable anything new; already-enabled units are untouched. Skip the
+  # timer-triggered services, which carry no [Install] section: enabling one
+  # only prints a notice, and must never abort the update between
+  # daemon-reload and the restart below.
+  for u in "${units[@]}"; do
+    case "$(basename "$u")" in
+      cxw-backup.service | cxw-monitor.service) continue ;;
+    esac
+    systemctl enable "$(basename "$u")" >/dev/null || true
+  done
+  systemctl restart cxw-backup.timer cxw-monitor.timer || true
 fi
 
 if [[ $restart -eq 1 ]]; then

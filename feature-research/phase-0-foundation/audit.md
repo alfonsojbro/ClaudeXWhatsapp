@@ -63,6 +63,34 @@ An independent review returned **block**. Fixed in response:
     Now rejects unknown arguments, keeps diagnostics on a failed restart, fails loudly if
     the unit glob matches nothing, and enables newly added units.
 
+## Review round 3
+
+Re-review returned **ship** with no blocking issues. Six cheap non-blocking items taken anyway,
+because two are the same silent-failure class as the defects above:
+
+13. **`pipefail` still hid a failing content producer.** `content "$f" | grep ...` reports grep's
+    status, so a failed `git show` in staged mode read as "no match" and left the file unscanned.
+    Each file is now copied once to a temp file with its own status check, which also stops
+    re-reading it once per pattern.
+14. **A single NUL byte silently skipped a whole file.** It still does, unavoidably, but now says
+    so: `check-secrets: skipping binary <file>`.
+15. **No way to excuse one line.** The only escape was `CXW_ALLOW_SECRETS=1`, which disables
+    everything, and Phase 1's JID fixtures would have invited exactly that. A line carrying the
+    marker `check-secrets: allow` is now skipped.
+16. **The Baileys key pattern required double-quoted JSON keys**, so a TypeScript fixture using
+    an unquoted key name slipped past it. Relaxed to bare, single- and double-quoted forms.
+17. **`update.sh` enabled timer-triggered services** that carry no `[Install]` section. Harmless
+    today, but under `set -e` a future non-zero return would abort between `daemon-reload` and the
+    restart, leaving new code on disk and old processes running. Those two are skipped and the
+    enable is guarded.
+18. **The wiring guard only checked that a config file exists.** A config with a wrong include glob
+    passed while running zero tests, which is the whole failure it was meant to prevent. It now
+    parses the include globs and asserts they match every discovered test file. Verified by
+    pointing `apps/brain` at `lib/**` and watching it fail.
+
+Also: fixed dangling prose in RUNBOOK §5, noted that both `ssh-keyscan` steps are trust-on-first-use,
+and warned at checklist step 5 that bootstrap enables the app services before their env files exist.
+
 ## Verification
 
 Run from the worktree on Node 22.23.2 / pnpm 10.34.5. Every CI step green:

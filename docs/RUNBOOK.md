@@ -17,6 +17,10 @@ for you. Work top to bottom. Each item points at the section with the exact comm
 5. [ ] Get a **Tailscale** auth key from the admin console, then run `bootstrap.sh` as root with
    `TS_AUTHKEY=...` and `CXW_TIMEZONE=Europe/Prague`. Without the key the script prints a login
    URL: open it, approve the machine, re-run. The script is idempotent. → §2
+   This run enables the app services before their env files exist. If the box reboots before you
+   reach step 15 (bootstrap also enables unattended upgrades, 04:30), they start with placeholder
+   values and latch into `failed`. That is recoverable with `systemctl reset-failed`, not a
+   problem, but do not be surprised by it.
 6. [ ] Confirm Tailscale is up and **ufw** is correct: default deny incoming, SSH allowed only on
    `tailscale0`, `41641/udp` open. Then confirm `ssh root@cxw` works over Tailscale. → §2
 7. [ ] Confirm the public SSH port is dead (`nc -vz <PUBLIC_IP> 22` must fail), then **delete the
@@ -207,13 +211,17 @@ ssh root@cxw 'ssh-keygen -t ed25519 -N "" -f /root/.ssh/storagebox_ed25519 && ca
 ```
 
 Paste the public key into Robot → Storage Box → SSH keys (or `ssh-copy-id -p 23 -i ... uXXXXXX@uXXXXXX.your-storagebox.de`).
-Add the host entry from `deploy/hetzner/restic.env.example` to `/root/.ssh/config`, then test:
+Add the host entry from `deploy/hetzner/restic.env.example` to `/root/.ssh/config`.
 
-The Storage Box host key has the same no-terminal problem as github.com, so accept it explicitly:
+The Storage Box host key has the same no-terminal problem as github.com, so accept it explicitly.
+Both this and the github.com keyscan are trust-on-first-use: they record whatever key answers,
+without checking it against a published fingerprint.
 
 ```bash
 ssh root@cxw 'ssh-keyscan -p 23 uXXXXXX.your-storagebox.de >> /root/.ssh/known_hosts'
 ```
+
+Then test:
 
 ```bash
 ssh root@cxw 'ssh -p 23 storagebox mkdir -p cxw && echo storagebox OK'
