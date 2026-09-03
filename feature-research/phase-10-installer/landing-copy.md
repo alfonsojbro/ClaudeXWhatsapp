@@ -81,7 +81,7 @@ Neither is a fake screenshot built from styled boxes.
 
 ### Navigation
 
-> ClaudeXWhatsapp · What it does · Setup · What stays yours · Cost · **Start setup**
+> ClaWa · What it does · Setup · What stays yours · Cost · **Start setup**
 
 Four links, one line, 68px tall. The links collapse below 800px and the button never does.
 

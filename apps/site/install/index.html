@@ -20,7 +20,7 @@
         <rect x="1" y="1" width="18" height="14" rx="4" fill="none" stroke="currentColor" stroke-width="2"/>
         <path d="M5 15 L5 19 L9 15" fill="none" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
       </svg>
-      ClaudeXWhatsapp
+      ClaWa
     </a>
     <nav aria-label="Sections">
       <ul>
@@ -57,10 +57,11 @@
           Access applications and DNS records.</p>
       </div>
       <div class="opt">
-        <h3>A Hetzner Cloud account</h3>
-        <p>With a project and an API token that can read and write. This is the account the server is
-          billed to, at €8.49 a month before tax.</p>
-        <p>You never give the token to anybody. Your browser sends it straight to Hetzner.</p>
+        <h3>Somewhere to run it</h3>
+        <p>Easiest is a Hetzner Cloud account with an API token that can read and write. The installer
+          makes the server for you, billed to you at €8.49 a month before tax.</p>
+        <p>If you already have a server running Ubuntu, you can use that instead and the installer
+          gives you one command to paste into it.</p>
       </div>
       <div class="opt">
         <h3>Your own copy of the code</h3>
@@ -114,10 +115,12 @@ pnpm --filter @cxw/installer build</code>
     </div>
 
     <div class="flag">
-      <h3>One piece is still landing</h3>
-      <p>The installer's own page is being finished right now. Its logic, its tests and its function
-        are done and in the repository. Until the page lands you can still get every account and token
-        above ready, which is the part that takes the longest.</p>
+      <h3>Two pieces are still landing</h3>
+      <p>The installer's own page is being finished right now. Its logic, its tests, its function and
+        its server providers are done and in the repository.</p>
+      <p>A one click button that puts the installer on your Cloudflare without the three steps above is
+        coming too, once the installer has its own public repository. The steps above are what works
+        today, and every account and token in the list is needed either way.</p>
     </div>
   </div>
 </section>
@@ -144,11 +147,12 @@ pnpm --filter @cxw/installer build</code>
         </ol>
       </div>
       <div class="group">
-        <span class="on">On Hetzner</span>
-        <h3>The server</h3>
+        <span class="on">On your server</span>
+        <h3>The machine</h3>
         <ol>
           <li>Builds the first boot instructions, checked so no secret can land in the wrong place.</li>
-          <li>Creates the server with a firewall that allows nothing inbound.</li>
+          <li>Creates the server with a firewall that allows nothing inbound, or hands you one command
+            to run on a machine you already own.</li>
         </ol>
       </div>
       <div class="group">
@@ -184,7 +188,7 @@ pnpm --filter @cxw/installer build</code>
 
 <footer>
   <div class="wrap">
-    <span>ClaudeXWhatsapp</span>
+    <span>ClaWa</span>
     <a href="../#privacy">What stays yours</a>
   </div>
 </footer>
