@@ -719,10 +719,12 @@ rotation. Phase 8 adds a console section with "when a tile is red".
 ## Which phase is where
 
 This guide was written on 2026-09-03 against `main` at `50b0da4` plus the committed tip of each
-phase branch. Run this on the Mac to see what has merged since:
+phase branch. Run this on the Mac to see which phases' code is in your checkout. It looks for
+each phase's files; `git branch --merged` is misleading here, because early pushes of the phase
+branches already sit under `main`:
 
 ```bash
-git branch -a --merged origin/main | grep phase
+scripts/setup-check.sh phases
 ```
 
 | Phase | Branch | State when this guide was written |
