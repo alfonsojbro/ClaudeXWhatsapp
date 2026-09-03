@@ -23,6 +23,7 @@ log()  { printf '\n\033[1;34m==> %s\033[0m\n' "$*"; }
 die()  { printf '\033[1;31mERROR: %s\033[0m\n' "$*" >&2; exit 1; }
 
 [[ $EUID -eq 0 ]] || die "run as root"
+# shellcheck source=/dev/null
 [[ -r /etc/os-release ]] && . /etc/os-release
 [[ "${ID:-}" == "ubuntu" ]] || echo "warning: tested on Ubuntu 24.04, found ${PRETTY_NAME:-unknown}"
 

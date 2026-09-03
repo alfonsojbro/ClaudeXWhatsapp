@@ -32,3 +32,6 @@ vault/.obsidian/*
 .DS_Store
 .idea/
 .vscode/
+
+# git worktrees used by parallel sessions
+.worktrees/

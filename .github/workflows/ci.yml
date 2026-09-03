@@ -8,9 +8,10 @@ jobs:
     runs-on: ubuntu-24.04
     steps:
       - uses: actions/checkout@v4
+      # No version here on purpose: package.json's packageManager field pins it.
+      # Setting both makes the action refuse to run with "Multiple versions of
+      # pnpm specified", which killed every run before a single check executed.
       - uses: pnpm/action-setup@v4
-        with:
-          version: 10
       - uses: actions/setup-node@v4
         with:
           node-version: 22

@@ -19,7 +19,10 @@ KEEP_WITHIN="${RESTIC_KEEP_WITHIN:-30d}"
 [[ $EUID -eq 0 ]] || { echo "run as root" >&2; exit 1; }
 if [[ -z "${RESTIC_REPOSITORY:-}" ]]; then
   [[ -r "$ENV_FILE" ]] || { echo "missing $ENV_FILE" >&2; exit 1; }
-  set -a; . "$ENV_FILE"; set +a
+  set -a
+  # shellcheck source=/dev/null
+  . "$ENV_FILE"
+  set +a
 fi
 [[ -n "${RESTIC_REPOSITORY:-}" ]] || { echo "RESTIC_REPOSITORY not set" >&2; exit 1; }
 [[ -n "${RESTIC_PASSWORD:-}${RESTIC_PASSWORD_FILE:-}" ]] || { echo "RESTIC_PASSWORD not set" >&2; exit 1; }

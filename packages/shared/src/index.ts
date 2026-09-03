@@ -7,12 +7,7 @@
 export const PROJECT = 'claudexwhatsapp' as const;
 
 export type ServiceName =
-  | 'bridge'
-  | 'brain'
-  | 'scheduler'
-  | 'mcp-whatsapp'
-  | 'mcp-google'
-  | 'mcp-vault';
+  'bridge' | 'brain' | 'scheduler' | 'mcp-whatsapp' | 'mcp-google' | 'mcp-vault';
 
 export interface ServiceInfo {
   readonly project: typeof PROJECT;
