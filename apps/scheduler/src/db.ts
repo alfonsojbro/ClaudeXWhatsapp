@@ -11,7 +11,7 @@ import Database from 'better-sqlite3';
 export type Db = Database.Database;
 
 /** Current schema version written to `schema_version`. */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 
 /**
  * The spool table.
@@ -37,18 +37,19 @@ const SPOOL_TABLE = (name: string): string => `CREATE TABLE ${name} (
 const SPOOL_COLUMNS =
   'id, name, slot, trigger, stage, payload, attempts, next_attempt_at, last_error, created_at';
 
-const MIGRATIONS = [
-  `CREATE TABLE IF NOT EXISTS leases (
-     name       TEXT PRIMARY KEY,
-     owner      TEXT NOT NULL,
-     expires_at INTEGER NOT NULL
-   )`,
-  SPOOL_TABLE('IF NOT EXISTS spool'),
-  `CREATE TABLE IF NOT EXISTS runs (
+/**
+ * The runs table.
+ *
+ * `dedupe` mirrors the spool column of the same name: it is what keeps the run rows of two
+ * meetings that share a routine, a slot and the `calendar` trigger apart. Empty for everything
+ * else, so cron, once and manual runs keep the original one-row-per-slot behaviour.
+ */
+const RUNS_TABLE = (name: string): string => `CREATE TABLE ${name} (
      id             INTEGER PRIMARY KEY AUTOINCREMENT,
      name           TEXT NOT NULL,
      slot           INTEGER NOT NULL,
      trigger        TEXT NOT NULL,
+     dedupe         TEXT NOT NULL DEFAULT '',
      started_at     INTEGER NOT NULL,
      finished_at    INTEGER,
      status         TEXT NOT NULL
@@ -59,8 +60,20 @@ const MIGRATIONS = [
      result_preview TEXT,
      cost_usd       REAL,
      delivered_at   INTEGER
+   )`;
+
+const RUNS_COLUMNS =
+  'id, name, slot, trigger, started_at, finished_at, status, attempts, log_path, error, ' +
+  'result_preview, cost_usd, delivered_at';
+
+const MIGRATIONS = [
+  `CREATE TABLE IF NOT EXISTS leases (
+     name       TEXT PRIMARY KEY,
+     owner      TEXT NOT NULL,
+     expires_at INTEGER NOT NULL
    )`,
-  `CREATE INDEX IF NOT EXISTS runs_name_idx ON runs (name, started_at DESC)`,
+  SPOOL_TABLE('IF NOT EXISTS spool'),
+  RUNS_TABLE('IF NOT EXISTS runs'),
   `CREATE TABLE IF NOT EXISTS routine_state (
      name        TEXT PRIMARY KEY,
      last_slot   INTEGER,
@@ -108,6 +121,7 @@ export function migrate(db: Db): void {
   try {
     for (const stmt of MIGRATIONS) db.exec(stmt);
     upgradeSpool(db);
+    upgradeRuns(db);
     const row = db.prepare('SELECT version FROM schema_version LIMIT 1').get() as
       { version: number } | undefined;
     if (row === undefined) {
@@ -138,6 +152,25 @@ function upgradeSpool(db: Db): void {
   }
   db.exec('CREATE INDEX IF NOT EXISTS spool_due_idx ON spool (next_attempt_at)');
   db.exec('CREATE UNIQUE INDEX IF NOT EXISTS spool_key_idx ON spool (name, slot, trigger, dedupe)');
+}
+
+/**
+ * Bring a pre-v3 `runs` table up to date.
+ *
+ * v2 had no `dedupe` column, so two meetings starting at the same instant shared one run row and
+ * the second prep was dropped as "already delivered". The table is rebuilt the way `upgradeSpool`
+ * rebuilds the spool, which also keeps the two migrations shaped alike. On a fresh database only
+ * the index is created.
+ */
+function upgradeRuns(db: Db): void {
+  const columns = db.prepare('PRAGMA table_info(runs)').all() as { name: string }[];
+  if (!columns.some((c) => c.name === 'dedupe')) {
+    db.exec(RUNS_TABLE('runs_v3'));
+    db.exec(`INSERT INTO runs_v3 (${RUNS_COLUMNS}) SELECT ${RUNS_COLUMNS} FROM runs`);
+    db.exec('DROP TABLE runs');
+    db.exec('ALTER TABLE runs_v3 RENAME TO runs');
+  }
+  db.exec('CREATE INDEX IF NOT EXISTS runs_name_idx ON runs (name, started_at DESC)');
 }
 
 /** The version recorded in the database. */

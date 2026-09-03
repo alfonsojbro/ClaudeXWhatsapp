@@ -3,6 +3,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest';
 import type { Config } from '../src/config.js';
 import type { Db } from '../src/db.js';
+import { getLease, leaseName } from '../src/lease.js';
 import { createLogger } from '../src/log.js';
 import { openDb } from '../src/db.js';
 import { buildJobPrompt, parseStatusMarker } from '../src/prompt.js';
@@ -11,7 +12,7 @@ import { Scheduler } from '../src/scheduler.js';
 import type { SchedulerDeps } from '../src/scheduler.js';
 import { enqueue, pendingFor } from '../src/spool.js';
 import { StaticRunner } from '../src/runner/static.js';
-import type { CalendarEvent } from '../src/types.js';
+import type { CalendarEvent, JobResult, JobRunner, Routine } from '../src/types.js';
 import {
   FakeCalendar,
   FakeDeliverer,
@@ -687,5 +688,186 @@ describe('same-instant calendar triggers', () => {
     const withDetails = pending.find((p) => (p.payload ?? '').includes('Design sync'))?.payload;
     expect(withDetails).toContain('Room 3');
     expect(withDetails).toContain('Agenda: the new spool');
+
+    // Both items must actually execute. `runs` is keyed on (name, slot, trigger, dedupe): without
+    // the dedupe column the second item finds the first meeting's delivered run row and is
+    // silently dropped, so only one prep is ever run and delivered.
+    const due = at(3 * MINUTE);
+    clock.set(due);
+    await scheduler.tick(due);
+    await scheduler.idle();
+
+    expect(runner.calls.length).toBe(2);
+    expect(deliverer.sends.length).toBe(2);
+    expect(history(db, 'meeting-prep', 10).length).toBe(2);
+    expect(pendingFor(db, 'meeting-prep')).toEqual([]);
+  });
+});
+
+describe('two same-instant calendar preps running at once', () => {
+  const guests = [
+    { email: 'me@example.com', self: true },
+    { email: 'guest@example.com', self: false },
+  ];
+
+  function writeMeetingPrep(): void {
+    vault.writeRoutine(
+      'meeting-prep',
+      [
+        'schedule: "*/5 * * * *"',
+        'timezone: Europe/Prague',
+        'trigger:',
+        '  type: calendar',
+        '  lead_minutes: 15',
+        '  require_attendees: true',
+      ].join('\n'),
+      'Prepare for the meeting.',
+    );
+  }
+
+  function twoMeetings(): CalendarEvent[] {
+    return [
+      {
+        id: 'evt-a',
+        summary: 'Design sync',
+        start: at(18 * MINUTE),
+        end: at(48 * MINUTE),
+        attendees: guests,
+      },
+      {
+        id: 'evt-b',
+        summary: 'Budget call',
+        start: at(18 * MINUTE),
+        end: at(48 * MINUTE),
+        attendees: guests,
+      },
+    ];
+  }
+
+  /** Spool both preps, then move the clock to the instant they come due. */
+  async function spoolBoth(scheduler: Scheduler): Promise<Date> {
+    await scheduler.tick(T0);
+    await scheduler.idle();
+    expect(pendingFor(db, 'meeting-prep').length).toBe(2);
+    const due = at(3 * MINUTE);
+    clock.set(due);
+    return due;
+  }
+
+  /** A runner whose jobs hang until the test finishes them, keeping every abort signal. */
+  class ControlledRunner implements JobRunner {
+    readonly prompts: string[] = [];
+    readonly signals: AbortSignal[] = [];
+    private readonly settlers: ((result: JobResult) => void)[] = [];
+
+    run(_routine: Routine, prompt: string, signal: AbortSignal): Promise<JobResult> {
+      this.prompts.push(prompt);
+      this.signals.push(signal);
+      return new Promise<JobResult>((resolve) => {
+        this.settlers.push(resolve);
+      });
+    }
+
+    /** Finish the nth job started. */
+    finish(index: number, text: string): void {
+      const settle = this.settlers[index];
+      if (settle === undefined) throw new Error(`no job at index ${String(index)}`);
+      settle({ isError: false, text, costUsd: 0.01, numTurns: 1, sessionId: 'fake' });
+    }
+  }
+
+  it('does not abort the second prep when the first one releases its lease', async () => {
+    writeMeetingPrep();
+    const jobs = new ControlledRunner();
+    const scheduler = build({
+      calendar: new FakeCalendar(twoMeetings()),
+      llmRunner: jobs,
+      // A short TTL puts the heartbeat on its 1 s floor, so it fires inside the test.
+      config: testConfig(vault, { leaseTtlMs: 3_000 }),
+    });
+    const due = await spoolBoth(scheduler);
+
+    vi.useFakeTimers();
+    try {
+      await scheduler.tick(due);
+      expect(jobs.prompts.length).toBe(2);
+
+      // The first prep finishes and releases its lease well before the second one is done.
+      jobs.finish(0, 'Prepared the first meeting.\n\nSTATUS: done');
+      await vi.advanceTimersByTimeAsync(2_000);
+
+      // With one lease per routine name, that release makes the second job's heartbeat fail and
+      // aborts a perfectly healthy job.
+      expect(jobs.signals[1]?.aborted).toBe(false);
+
+      jobs.finish(1, 'Prepared the second meeting.\n\nSTATUS: done');
+      await scheduler.idle();
+    } finally {
+      vi.useRealTimers();
+    }
+
+    expect(deliverer.sends.map((s) => s.text).sort()).toEqual([
+      'Prepared the first meeting.',
+      'Prepared the second meeting.',
+    ]);
+    const runs = history(db, 'meeting-prep', 10);
+    expect(runs.length).toBe(2);
+    expect(runs.map((r) => r.status)).toEqual(['done', 'done']);
+    expect(pendingFor(db, 'meeting-prep')).toEqual([]);
+  });
+
+  it('writes one run log per prep when both finish in the same second', async () => {
+    writeMeetingPrep();
+    const echo: JobRunner = {
+      run: (_routine: Routine, prompt: string): Promise<JobResult> => {
+        const summary = prompt.includes('Design sync') ? 'Design sync' : 'Budget call';
+        return Promise.resolve({
+          isError: false,
+          text: `Prepared: ${summary}\n\nSTATUS: done`,
+          costUsd: 0.01,
+          numTurns: 1,
+          sessionId: 'fake',
+        });
+      },
+    };
+    const scheduler = build({ calendar: new FakeCalendar(twoMeetings()), llmRunner: echo });
+    const due = await spoolBoth(scheduler);
+
+    // The clock is fixed, so both runs finish at exactly the same second.
+    await scheduler.tick(due);
+    await scheduler.idle();
+
+    expect(vault.runLogs('meeting-prep').length).toBe(2);
+    const runs = history(db, 'meeting-prep', 10);
+    expect(runs.length).toBe(2);
+    expect(new Set(runs.map((r) => r.logPath)).size).toBe(2);
+    for (const run of runs) {
+      expect(run.logPath).not.toBeNull();
+      const expected = run.dedupe === 'evt-a' ? 'Design sync' : 'Budget call';
+      expect(fs.readFileSync(run.logPath ?? '', 'utf8')).toContain(`Prepared: ${expected}`);
+    }
+  });
+});
+
+describe('cron routines under the per-item lease key', () => {
+  it('still refuses a second process the lease while a cron job runs', async () => {
+    writeMorningBrief();
+    const release = runner.pushPending('Three meetings today.\n\nSTATUS: done');
+    const first = build({ owner: 'proc-a' });
+    const second = build({ owner: 'proc-b' });
+
+    await first.tick(T0);
+    expect(runner.calls.length).toBe(1);
+
+    // A second process sees the same due spool item and must be turned away by the lease.
+    await second.tick(T0);
+    await second.idle();
+    expect(runner.calls.length).toBe(1);
+    expect(getLease(db, leaseName('morning-brief', ''))?.owner).toBe('proc-a');
+
+    release();
+    await first.idle();
+    expect(history(db, 'morning-brief')[0]?.status).toBe('done');
+    expect(deliverer.sends.length).toBe(1);
   });
 });

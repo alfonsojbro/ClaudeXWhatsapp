@@ -1,11 +1,12 @@
 /**
- * Liveness of the real service entry point.
+ * Smoke test of the real service entry point.
  *
  * This test runs `src/main.ts` — the file `pnpm --filter @cxw/scheduler start` runs under the
- * systemd unit — in a child process and proves two things the unit tests cannot: the process is
- * still running well after more than two tick intervals, and SIGTERM shuts it down cleanly. A tick
- * timer that is `unref`'d makes the first assertion fail, because the event loop drains and node
- * exits within a second of starting.
+ * systemd unit — in a child process and proves three things the unit tests cannot: a routine that
+ * is due at boot actually runs (so a tick that threw would fail the test rather than pass
+ * silently), the process is still running well after more than two tick intervals, and SIGTERM
+ * shuts it down cleanly. A tick timer that is `unref`'d makes the liveness assertion fail, because
+ * the event loop drains and node exits within a second of starting.
  */
 import { spawn } from 'node:child_process';
 import type { ChildProcess } from 'node:child_process';
@@ -13,6 +14,7 @@ import fs from 'node:fs';
 import os from 'node:os';
 import path from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
+import Database from 'better-sqlite3';
 import { afterEach, describe, expect, it } from 'vitest';
 
 const HERE = path.dirname(fileURLToPath(import.meta.url));
@@ -60,13 +62,43 @@ function childEnv(): NodeJS.ProcessEnv {
   return env;
 }
 
+/** Rows of the `runs` table of the child's database, read from outside the process. */
+function runRows(dbPath: string): { name: string; status: string }[] {
+  const db = new Database(dbPath, { readonly: true });
+  try {
+    return db.prepare('SELECT name, status FROM runs').all() as { name: string; status: string }[];
+  } finally {
+    db.close();
+  }
+}
+
 describe('service entry point', () => {
-  it('stays alive past two tick intervals and exits cleanly on SIGTERM', async () => {
+  it('runs a due routine, stays alive past two ticks and exits cleanly on SIGTERM', async () => {
     tempDir = fs.mkdtempSync(path.join(os.tmpdir(), 'cxw-main-'));
     const dataDir = path.join(tempDir, 'data');
     const vaultDir = path.join(tempDir, 'vault');
     fs.mkdirSync(dataDir, { recursive: true });
     fs.mkdirSync(path.join(vaultDir, 'routines'), { recursive: true });
+    // A `static` routine due every minute: the first tick must run it. No model is called and the
+    // bridge is unreachable, so delivery fails and the item is re-staged, but the run row proves
+    // the tick actually did its work.
+    fs.writeFileSync(
+      path.join(vaultDir, 'routines', 'smoke.md'),
+      [
+        '---',
+        'name: smoke',
+        "schedule: '* * * * *'",
+        'timezone: Europe/Prague',
+        'kind: static',
+        'catch_up_minutes: 5',
+        '---',
+        '',
+        'Smoke test reminder.',
+        '',
+      ].join('\n'),
+      'utf8',
+    );
+    const dbPath = path.join(dataDir, 'scheduler.sqlite');
 
     let stdout = '';
     let stderr = '';
@@ -79,7 +111,7 @@ describe('service entry point', () => {
           CXW_DATA_DIR: dataDir,
           CXW_VAULT_DIR: vaultDir,
           CXW_WORKSPACE_DIR: path.join(tempDir, 'workspace'),
-          SCHEDULER_DB: path.join(dataDir, 'scheduler.sqlite'),
+          SCHEDULER_DB: dbPath,
           SCHEDULER_TICK_MS: String(TICK_MS),
           LOG_LEVEL: 'info',
           BRIDGE_URL: 'http://127.0.0.1:1',
@@ -113,6 +145,18 @@ describe('service entry point', () => {
     await wait(TICK_MS * 3);
     expect(started.exitCode, `process exited early. stderr:\n${stderr}`).toBeNull();
     expect(started.signalCode).toBeNull();
+
+    // The due routine really ran. Without this the test would still pass if every tick threw
+    // inside `tick()`'s catch.
+    const runDeadline = Date.now() + BOOT_TIMEOUT_MS;
+    let rows = runRows(dbPath);
+    while (rows.length === 0 && Date.now() < runDeadline) {
+      await wait(50);
+      rows = runRows(dbPath);
+    }
+    expect(rows, `no run row was written. stdout:\n${stdout}\nstderr:\n${stderr}`).toEqual([
+      { name: 'smoke', status: 'done' },
+    ]);
 
     started.kill('SIGTERM');
     const result = await exit;

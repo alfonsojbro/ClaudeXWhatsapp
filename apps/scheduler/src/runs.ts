@@ -2,6 +2,7 @@
  * Run bookkeeping: the `runs` and `routine_state` tables, plus the markdown run log written into
  * the vault.
  */
+import { createHash } from 'node:crypto';
 import fs from 'node:fs';
 import path from 'node:path';
 import matter from 'gray-matter';
@@ -14,6 +15,8 @@ export interface RunRecord {
   name: string;
   slot: number;
   trigger: Trigger;
+  /** Extra discriminator, empty except for calendar runs, where it is the event id. */
+  dedupe: string;
   startedAt: number;
   finishedAt: number | null;
   status: RunStatus;
@@ -38,6 +41,7 @@ interface RunRow {
   name: string;
   slot: number;
   trigger: string;
+  dedupe: string;
   started_at: number;
   finished_at: number | null;
   status: string;
@@ -49,8 +53,8 @@ interface RunRow {
   delivered_at: number | null;
 }
 
-const RUN_SELECT = `SELECT id, name, slot, trigger, started_at, finished_at, status, attempts,
-                           log_path, error, result_preview, cost_usd, delivered_at
+const RUN_SELECT = `SELECT id, name, slot, trigger, dedupe, started_at, finished_at, status,
+                           attempts, log_path, error, result_preview, cost_usd, delivered_at
                     FROM runs`;
 
 function toRun(row: RunRow): RunRecord {
@@ -59,6 +63,7 @@ function toRun(row: RunRow): RunRecord {
     name: row.name,
     slot: row.slot,
     trigger: row.trigger as Trigger,
+    dedupe: row.dedupe,
     startedAt: row.started_at,
     finishedAt: row.finished_at,
     status: row.status as RunStatus,
@@ -76,6 +81,8 @@ export interface StartRunInput {
   name: string;
   slot: Date;
   trigger: Trigger;
+  /** Extra discriminator; defaults to the empty string, matching the spool item. */
+  dedupe?: string;
   startedAt: Date;
   attempts?: number;
 }
@@ -84,13 +91,14 @@ export interface StartRunInput {
 export function startRun(db: Db, input: StartRunInput): number {
   const info = db
     .prepare(
-      `INSERT INTO runs (name, slot, trigger, started_at, status, attempts)
-       VALUES (?, ?, ?, ?, 'running', ?)`,
+      `INSERT INTO runs (name, slot, trigger, dedupe, started_at, status, attempts)
+       VALUES (?, ?, ?, ?, ?, 'running', ?)`,
     )
     .run(
       input.name,
       input.slot.getTime(),
       input.trigger,
+      input.dedupe ?? '',
       input.startedAt.getTime(),
       input.attempts ?? 0,
     );
@@ -151,6 +159,8 @@ export interface SkippedInput {
   name: string;
   slot: Date;
   trigger: Trigger;
+  /** Extra discriminator; defaults to the empty string, matching the spool item. */
+  dedupe?: string;
   at: Date;
   error?: string;
 }
@@ -159,13 +169,15 @@ export interface SkippedInput {
 export function recordSkipped(db: Db, input: SkippedInput): number {
   const info = db
     .prepare(
-      `INSERT INTO runs (name, slot, trigger, started_at, finished_at, status, attempts, error)
-       VALUES (?, ?, ?, ?, ?, 'skipped', 0, ?)`,
+      `INSERT INTO runs (name, slot, trigger, dedupe, started_at, finished_at, status, attempts,
+                         error)
+       VALUES (?, ?, ?, ?, ?, ?, 'skipped', 0, ?)`,
     )
     .run(
       input.name,
       input.slot.getTime(),
       input.trigger,
+      input.dedupe ?? '',
       input.at.getTime(),
       input.at.getTime(),
       input.error ?? 'missed while scheduler was down',
@@ -185,16 +197,22 @@ export function history(db: Db, name: string, limit = 5): RunRecord[] {
  * The run row already recorded for one scheduled slot, if any.
  *
  * The scheduler uses this so a retried spool item reuses its run row instead of adding a second.
+ * The key matches the spool's: `dedupe` is what keeps two meetings starting at the same instant
+ * on separate run rows.
  */
 export function findRunBySlot(
   db: Db,
   name: string,
   slot: Date,
   trigger: Trigger,
+  dedupe = '',
 ): RunRecord | null {
   const row = db
-    .prepare(`${RUN_SELECT} WHERE name = ? AND slot = ? AND trigger = ? ORDER BY id DESC LIMIT 1`)
-    .get(name, slot.getTime(), trigger) as RunRow | undefined;
+    .prepare(
+      `${RUN_SELECT} WHERE name = ? AND slot = ? AND trigger = ? AND dedupe = ?
+       ORDER BY id DESC LIMIT 1`,
+    )
+    .get(name, slot.getTime(), trigger, dedupe) as RunRow | undefined;
   return row === undefined ? null : toRun(row);
 }
 
@@ -216,7 +234,9 @@ export function getRun(db: Db, id: number): RunRecord | null {
 /**
  * Fail every run left `running` by a crash.
  *
- * A row is stale when no unexpired lease is held for its routine.
+ * A row is stale when no unexpired lease is held for it. Leases are keyed on
+ * `<name>:<dedupe>` (see `leaseName` in `lease.ts`), so the key is rebuilt here rather than
+ * matching on the routine name alone.
  *
  * @returns how many rows were failed.
  */
@@ -226,7 +246,8 @@ export function markStaleRunning(db: Db, now: Date): number {
       `UPDATE runs
           SET status = 'failed', error = 'stale after restart', finished_at = @now
         WHERE status = 'running'
-          AND name NOT IN (SELECT name FROM leases WHERE expires_at > @now)`,
+          AND (name || ':' || dedupe) NOT IN
+              (SELECT name FROM leases WHERE expires_at > @now)`,
     )
     .run({ now: now.getTime() });
   return info.changes;
@@ -281,6 +302,11 @@ export function setState(db: Db, name: string, patch: StatePatch): void {
 export interface RunLogInput {
   routine: string;
   trigger: Trigger;
+  /**
+   * Extra discriminator, empty except for calendar runs. A non-empty value adds a short suffix to
+   * the filename, so two runs of one routine finishing in the same second keep separate logs.
+   */
+  dedupe?: string;
   scheduledFor: Date;
   started: Date;
   finished: Date;
@@ -297,19 +323,34 @@ export function runLogStamp(date: Date): string {
   return `${date.toISOString().slice(0, 19).replace(/:/g, '-')}Z`;
 }
 
+/**
+ * The file name of a run log: the finish stamp, plus a short digest of `dedupe` when there is one.
+ *
+ * The stamp alone is only unique per second, which is not enough for two calendar preps of one
+ * routine running at the same time. The digest is a pure function of `dedupe`, so a retry of the
+ * same item still overwrites its own log rather than adding another.
+ */
+export function runLogName(finished: Date, dedupe = ''): string {
+  const stamp = runLogStamp(finished);
+  if (dedupe === '') return `${stamp}.md`;
+  const suffix = createHash('sha1').update(dedupe).digest('hex').slice(0, 8);
+  return `${stamp}-${suffix}.md`;
+}
+
 function yamlString(value: string): string {
   return JSON.stringify(value);
 }
 
 /**
- * Write `vault/runs/<name>/<YYYY-MM-DDTHH-mm-ssZ>.md`, creating directories as needed.
+ * Write `vault/runs/<name>/<YYYY-MM-DDTHH-mm-ssZ>[-<dedupe digest>].md`, creating directories as
+ * needed.
  *
  * @returns the absolute path written.
  */
 export function writeRunLog(vaultDir: string, input: RunLogInput): string {
   const dir = path.join(vaultDir, 'runs', input.routine);
   fs.mkdirSync(dir, { recursive: true });
-  const filePath = path.join(dir, `${runLogStamp(input.finished)}.md`);
+  const filePath = path.join(dir, runLogName(input.finished, input.dedupe ?? ''));
 
   const lines = [
     '---',

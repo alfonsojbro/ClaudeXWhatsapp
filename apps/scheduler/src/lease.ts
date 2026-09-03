@@ -1,9 +1,24 @@
 /**
- * Per-routine leases: at most one process runs a given routine at a time.
+ * Per-item leases: at most one process runs a given piece of work at a time.
  *
- * The claim is a single statement so it is atomic without an explicit transaction.
+ * The key is {@link leaseName}, not the bare routine name, so it matches the scheduler's
+ * concurrency key exactly. The claim is a single statement so it is atomic without an explicit
+ * transaction.
  */
 import type { Db } from './db.js';
+
+/**
+ * The key a lease is taken under: the routine name plus the spool item's `dedupe`.
+ *
+ * `dedupe` is empty for cron, once and manual items, so those keep one lease per routine. Two
+ * calendar events starting at the same instant carry distinct event ids, so they get one lease
+ * each and neither can release or expire the other's.
+ *
+ * `markStaleRunning` in `runs.ts` rebuilds this key in SQL; keep the two in step.
+ */
+export function leaseName(routine: string, dedupe: string): string {
+  return `${routine}:${dedupe}`;
+}
 
 /** A lease row. */
 export interface Lease {

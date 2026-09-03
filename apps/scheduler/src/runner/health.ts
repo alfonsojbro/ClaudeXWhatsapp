@@ -208,13 +208,6 @@ export function storeHealthStates(db: Db, report: HealthReport, at: Date): void 
   for (const check of report.checks) setHealthState(db, check, at);
 }
 
-/** {@link diffHealth} followed by {@link storeHealthStates}. */
-export function diffAndStore(db: Db, report: HealthReport, at: Date): HealthChange[] {
-  const changes = diffHealth(db, report);
-  storeHealthStates(db, report, at);
-  return changes;
-}
-
 /** Human alert text for a set of state changes. Empty when there are none. */
 export function changeAlertText(changes: HealthChange[]): string {
   if (changes.length === 0) return '';

@@ -11,7 +11,7 @@ import path from 'node:path';
 import { pollCalendarTriggers } from './calendar-trigger.js';
 import type { Config } from './config.js';
 import type { Db } from './db.js';
-import { claimLease, heartbeatLease, releaseLease } from './lease.js';
+import { claimLease, heartbeatLease, leaseName, releaseLease } from './lease.js';
 import type { Logger } from './log.js';
 import { createLogger } from './log.js';
 import { buildJobPrompt, parseStatusMarker } from './prompt.js';
@@ -74,12 +74,6 @@ export interface SchedulerDeps {
   logger?: Logger;
   /** Lease owner id. Defaults to `pid-<process id>`. */
   owner?: string;
-  /**
-   * `unref` the tick timer so it does not hold the event loop open. Defaults to **false**:
-   * production must keep the timer ref'd or the service exits as soon as `main()` drains.
-   * Only a test that starts a scheduler it never stops should set this.
-   */
-  unrefTimer?: boolean;
 }
 
 /** The system clock. */
@@ -110,7 +104,6 @@ export class Scheduler {
   private readonly emailAlert: EmailAlert | null;
   private readonly logger: Logger;
   private readonly owner: string;
-  private readonly unrefTimer: boolean;
 
   private routines = new Map<string, Routine>();
   private inFlight = new Map<string, Promise<void>>();
@@ -133,7 +126,6 @@ export class Scheduler {
     this.emailAlert = deps.emailAlert ?? null;
     this.logger = deps.logger ?? createLogger('scheduler');
     this.owner = deps.owner ?? `pid-${String(process.pid)}`;
-    this.unrefTimer = deps.unrefTimer ?? false;
   }
 
   /** The routines loaded by the most recent tick. */
@@ -148,7 +140,8 @@ export class Scheduler {
    * with the default 60 s cadence every later tick lands on a minute boundary and a `0 7 * * *`
    * slot is seen within a second of 07:00.
    *
-   * The timer is ref'd unless `unrefTimer` was set, because it is what keeps the service alive.
+   * Both handles stay ref'd: the tick timer is what keeps the service alive, so `main()` must not
+   * be able to drain the event loop while the scheduler is running.
    */
   start(intervalMs: number = this.config.tickMs): void {
     this.stopped = false;
@@ -163,9 +156,7 @@ export class Scheduler {
       this.timer = setInterval(() => {
         void this.tick(this.clock.now());
       }, intervalMs);
-      if (this.unrefTimer) this.timer.unref?.();
     }, delay);
-    if (this.unrefTimer) this.alignTimer.unref?.();
   }
 
   /** Stop ticking and wait for the jobs already running. */
@@ -306,7 +297,11 @@ export class Scheduler {
 
     for (const item of items) {
       if (this.stopped) break;
-      if (this.inFlight.has(item.name)) continue;
+      // Keyed on the item, not the routine: two meetings at the same instant share a name but
+      // are separate pieces of work. This is the same key the lease uses, so a job can never be
+      // aborted by another job that only happens to share its routine name.
+      const key = leaseName(item.name, item.dedupe);
+      if (this.inFlight.has(key)) continue;
       const routine = this.routines.get(item.name);
       if (routine === undefined) {
         this.logger.warn({ routine: item.name }, 'spool item has no routine file');
@@ -324,9 +319,9 @@ export class Scheduler {
         })
         .finally(() => {
           if (isLlm) this.llmInFlight -= 1;
-          this.inFlight.delete(item.name);
+          this.inFlight.delete(key);
         });
-      this.inFlight.set(item.name, promise);
+      this.inFlight.set(key, promise);
     }
   }
 
@@ -343,7 +338,8 @@ export class Scheduler {
     if (routine === undefined) return;
 
     const now = this.clock.now();
-    if (!claimLease(this.db, item.name, this.owner, this.config.leaseTtlMs, now)) {
+    const lease = leaseName(item.name, item.dedupe);
+    if (!claimLease(this.db, lease, this.owner, this.config.leaseTtlMs, now)) {
       this.logger.debug({ routine: item.name }, 'lease held elsewhere');
       return;
     }
@@ -360,7 +356,7 @@ export class Scheduler {
       }
       await this.executeJob(routine, item, now);
     } finally {
-      releaseLease(this.db, item.name, this.owner);
+      releaseLease(this.db, lease, this.owner);
     }
   }
 
@@ -378,7 +374,13 @@ export class Scheduler {
       return;
     }
     const at = this.clock.now();
-    const run = findRunBySlot(this.db, routine.name, new Date(item.slot), item.trigger);
+    const run = findRunBySlot(
+      this.db,
+      routine.name,
+      new Date(item.slot),
+      item.trigger,
+      item.dedupe,
+    );
     if (run !== null) markDelivered(this.db, run.id, at);
     this.afterDelivery(routine);
     remove(this.db, item.id);
@@ -397,6 +399,7 @@ export class Scheduler {
       logPath = writeRunLog(this.config.vaultDir, {
         routine: routine.name,
         trigger: item.trigger,
+        dedupe: item.dedupe,
         scheduledFor: new Date(item.slot),
         started: now,
         finished,
@@ -421,6 +424,10 @@ export class Scheduler {
 
     if (alert === '') {
       storeHealthStates(this.db, report, now);
+      // Nothing is sent on a quiet run, but the row must still be marked delivered: a crash before
+      // `remove` would otherwise leave a `done` row with a null `delivered_at`, and the recovery
+      // path would re-stage it and send the owner the raw probe lines this branch suppressed.
+      markDelivered(this.db, runId, this.clock.now());
       remove(this.db, item.id);
       return;
     }
@@ -445,17 +452,12 @@ export class Scheduler {
     const prompt = buildJobPrompt(routine, now, item.payload ?? undefined);
 
     const controller = new AbortController();
+    // The heartbeat renews this item's own lease, not the routine's: another prep for the same
+    // routine finishing first must not be able to abort this job.
+    const lease = leaseName(item.name, item.dedupe);
     const heartbeat = setInterval(
       () => {
-        if (
-          !heartbeatLease(
-            this.db,
-            routine.name,
-            this.owner,
-            this.config.leaseTtlMs,
-            this.clock.now(),
-          )
-        ) {
+        if (!heartbeatLease(this.db, lease, this.owner, this.config.leaseTtlMs, this.clock.now())) {
           this.logger.warn({ routine: routine.name }, 'lease lost, aborting job');
           controller.abort();
         }
@@ -479,6 +481,7 @@ export class Scheduler {
       const logPath = writeRunLog(this.config.vaultDir, {
         routine: routine.name,
         trigger: item.trigger,
+        dedupe: item.dedupe,
         scheduledFor: new Date(item.slot),
         started: now,
         finished,
@@ -508,6 +511,7 @@ export class Scheduler {
     const logPath = writeRunLog(this.config.vaultDir, {
       routine: routine.name,
       trigger: item.trigger,
+      dedupe: item.dedupe,
       scheduledFor: new Date(item.slot),
       started: now,
       finished,
@@ -553,7 +557,13 @@ export class Scheduler {
    * @returns true when the item was dealt with and must not be run.
    */
   private recoverFinishedRun(routine: Routine, item: SpoolItem, now: Date): boolean {
-    const existing = findRunBySlot(this.db, routine.name, new Date(item.slot), item.trigger);
+    const existing = findRunBySlot(
+      this.db,
+      routine.name,
+      new Date(item.slot),
+      item.trigger,
+      item.dedupe,
+    );
     if (existing === null) return false;
     if (existing.status !== 'done' && existing.status !== 'needs_input') return false;
 
@@ -582,7 +592,13 @@ export class Scheduler {
 
   /** Open (or reopen) the run row for this slot, so a retry never duplicates it. */
   private openRun(routine: Routine, item: SpoolItem, now: Date): number {
-    const existing = findRunBySlot(this.db, routine.name, new Date(item.slot), item.trigger);
+    const existing = findRunBySlot(
+      this.db,
+      routine.name,
+      new Date(item.slot),
+      item.trigger,
+      item.dedupe,
+    );
     if (existing !== null) {
       reopenRun(this.db, existing.id, now, item.attempts);
       return existing.id;
@@ -591,6 +607,7 @@ export class Scheduler {
       name: routine.name,
       slot: new Date(item.slot),
       trigger: item.trigger,
+      dedupe: item.dedupe,
       startedAt: now,
       attempts: item.attempts,
     });

@@ -4,7 +4,7 @@ import path from 'node:path';
 import { afterEach, beforeEach, describe, expect, it } from 'vitest';
 import type { Db } from '../src/db.js';
 import { openDb } from '../src/db.js';
-import { claimLease } from '../src/lease.js';
+import { claimLease, leaseName } from '../src/lease.js';
 import {
   findRunBySlot,
   finishRun,
@@ -201,13 +201,13 @@ describe('markStaleRunning', () => {
 
   it('leaves a run alone while its lease is alive', () => {
     open();
-    claimLease(db, 'morning-brief', 'other', 90_000, at(1_000));
+    claimLease(db, leaseName('morning-brief', ''), 'other', 90_000, at(1_000));
     expect(markStaleRunning(db, at(2_000))).toBe(0);
   });
 
   it('fails a run whose lease has expired', () => {
     open();
-    claimLease(db, 'morning-brief', 'other', 1_000, T0);
+    claimLease(db, leaseName('morning-brief', ''), 'other', 1_000, T0);
     expect(markStaleRunning(db, at(5_000))).toBe(1);
   });
 

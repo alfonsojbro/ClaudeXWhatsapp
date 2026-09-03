@@ -5,6 +5,7 @@
  * directly (the systemd unit runs `pnpm --filter @cxw/scheduler start`).
  */
 import path from 'node:path';
+import { pathToFileURL } from 'node:url';
 import { loadConfig } from './config.js';
 import type { Config } from './config.js';
 import { openDb } from './db.js';
@@ -126,8 +127,10 @@ export async function main(): Promise<void> {
   });
 }
 
+// `import.meta.url` is percent-encoded; `pathToFileURL` encodes the argv path the same way, so
+// this still matches on a checkout whose path contains a space.
 const entry = process.argv[1];
-if (entry !== undefined && import.meta.url === new URL(`file://${entry}`).href) {
+if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
   main().catch((err: unknown) => {
     console.error(err);
     process.exit(1);

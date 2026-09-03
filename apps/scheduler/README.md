@@ -101,6 +101,14 @@ An alert is sent only when a probe changes state — down, or recovered. It goes
 except when the `whatsapp` probe itself is the failing one, in which case it goes by e-mail to
 `CXW_ALERT_EMAIL_TO`. A run log is written only when at least one probe is not ok.
 
+The new probe state is stored only after the alert has actually gone out, so a failed send does
+not silence that failure for good. One consequence is deliberate: with no `CXW_ALERT_EMAIL_TO`
+configured, a `whatsapp` probe failure has no channel left — the fallback is the bridge, which is
+down by definition. The send fails, the state is not stored, and no "recovered" message is ever
+sent either, because as far as the database is concerned nothing ever changed. WhatsApp being down
+is visible on the phone itself, so this is accepted rather than worked around. Set
+`CXW_ALERT_EMAIL_TO` to get the alert by e-mail instead.
+
 ## Calendar triggers
 
 A routine with `trigger.type: calendar` uses its cron only as a poll cadence. Every

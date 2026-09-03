@@ -4,6 +4,7 @@
  * This module is the package's public API: the brain's routine commands import from here. It has
  * no side effects, so importing it never starts the service. Run `src/main.ts` for that.
  */
+import { pathToFileURL } from 'node:url';
 import { banner, serviceInfo } from '@cxw/shared';
 
 export const SERVICE = 'scheduler' as const;
@@ -90,8 +91,10 @@ export type {
   Trigger,
 } from './types.js';
 
+// `import.meta.url` is percent-encoded; `pathToFileURL` encodes the argv path the same way, so
+// this still matches on a checkout whose path contains a space.
 const entry = process.argv[1];
-if (entry !== undefined && import.meta.url === new URL(`file://${entry}`).href) {
+if (entry !== undefined && import.meta.url === pathToFileURL(entry).href) {
   main().catch((err: unknown) => {
     console.error(err);
     process.exit(1);

@@ -845,3 +845,246 @@ pre-existing files this phase never touched; no new one was added.
 - The three extra test files added outside the original Files touched list stay; they are tests
   only. `apps/scheduler/tests/main.test.ts` is a fourth, added by B1.
 - The pre-existing `format:check` failures on seven files this phase did not touch.
+
+---
+
+# Second review fixes (fix-plan-2.md, C1–C8)
+
+## Files changed
+
+- `apps/scheduler/src/db.ts`
+- `apps/scheduler/src/runs.ts`
+- `apps/scheduler/src/scheduler.ts`
+- `apps/scheduler/src/main.ts`
+- `apps/scheduler/src/index.ts`
+- `apps/scheduler/src/runner/health.ts`
+- `apps/scheduler/README.md`
+- `apps/scheduler/tests/db.test.ts` (new)
+- `apps/scheduler/tests/main.test.ts`
+- `apps/scheduler/tests/scheduler.test.ts`
+- `apps/brain/src/index.ts`
+- `apps/bridge/src/index.ts`
+- `mcp/google/src/index.ts`
+- `mcp/vault/src/index.ts`
+- `mcp/whatsapp/src/index.ts`
+
+## C1 — `runs` had no `dedupe` column, so N4 netted out to zero
+
+Blocking. Fixed across all three files the plan named.
+
+**`db.ts`** — `SCHEMA_VERSION` is now **3**. The inline `runs` DDL became a `RUNS_TABLE(name)`
+template (mirroring `SPOOL_TABLE`) with a new `dedupe TEXT NOT NULL DEFAULT ''` column, plus a
+`RUNS_COLUMNS` list of the v2 columns. A new `upgradeRuns(db)` runs after `upgradeSpool(db)` and
+uses the same rebuild pattern: when `PRAGMA table_info(runs)` has no `dedupe`, it creates
+`runs_v3`, copies every v2 column (ids included), drops `runs` and renames. A plain
+`ALTER TABLE ... ADD COLUMN` would also have worked here, but the plan asked for the rebuild
+pattern and it keeps the two migrations shaped alike. `CREATE INDEX ... runs_name_idx` moved out of
+`MIGRATIONS` and into `upgradeRuns`, because dropping the table drops its indexes and the index has
+to be recreated after the rebuild, not before it.
+
+**`runs.ts`** — `RunRecord` and `RunRow` carry `dedupe`; `RUN_SELECT` and `toRun` include it.
+`StartRunInput` and `SkippedInput` gained an optional `dedupe` (default `''`), and both INSERTs
+write it. `findRunBySlot` takes a fifth parameter `dedupe = ''` and adds `AND dedupe = ?` to its
+WHERE clause. The parameter is optional so the existing `runs.test.ts` call sites, which exercise
+the empty-dedupe behaviour, needed no change.
+
+**`scheduler.ts`** — all three `findRunBySlot` call sites (`redeliver`, `recoverFinishedRun`,
+`openRun`) pass `item.dedupe`, and `openRun`'s `startRun` writes it. `processSpool` keys `inFlight`
+on `${item.name}:${item.dedupe}` instead of `item.name`, so two same-instant meetings are not
+serialised across ticks.
+
+**Proof.** The existing N4 test in `scheduler.test.ts` was extended, as the plan required, to
+actually execute both spool items: after the `pendingFor` assertions it advances the clock to
+`start - lead_minutes`, ticks, awaits `idle()`, and asserts **2 runner calls, 2 deliveries, 2 rows
+in `history('meeting-prep')` and an empty spool**. Written first and watched fail on the
+pre-fix code with `expected 1 to be 2` at the runner-call assertion; passes after the fix. The
+three new `runs rebuild` cases in `db.test.ts` cover the migration itself.
+
+## C2 — a crash on a quiet health run delivered raw probe output
+
+`executeHealth`'s `alert === ''` branch now calls `markDelivered(this.db, runId, ...)` alongside
+`storeHealthStates`, before `remove`. A crash between those two lines no longer leaves a `done` row
+with a null `delivered_at`, so `recoverFinishedRun` drops the spool item instead of re-staging it
+as `deliver` and sending the owner the raw probe lines. Chosen over skipping recovery for
+`kind: health`, because the recovery path is still wanted for the alerting branch.
+
+## C3 — `diffAndStore` was dead code
+
+Deleted from `apps/scheduler/src/runner/health.ts`. Nothing imported it; `diffHealth` and
+`storeHealthStates` remain and are what `scheduler.ts` uses.
+
+## C4 — `unrefTimer` was a knob nothing turned
+
+Deleted. No test set it, so the flag added an untested branch to the exact path that caused B1.
+Gone from `SchedulerDeps`, from the field list, from the constructor, and from `start()`, which now
+unconditionally leaves both `alignTimer` and `timer` ref'd. The doc comment on `start()` says so.
+
+## C5 — `main.test.ts` proved liveness and nothing else
+
+The temp vault now contains one `kind: static` routine `smoke.md` on `* * * * *` with
+`catch_up_minutes: 5`, so it is due on the first tick. After the liveness window the test opens the
+child's SQLite file read-only and polls until a `runs` row appears, then asserts exactly
+`[{ name: 'smoke', status: 'done' }]`. A tick that threw inside `tick()`'s catch would now fail the
+test. The bridge is deliberately unreachable, so the send fails and the item is re-staged; the run
+row is the assertion, not the delivery. The test still spawns and reaps the same single child.
+
+## C6 — the `import.meta.url` entry guard broke on paths containing a space
+
+Seven modules had the identical `new URL(\`file://${entry}\`).href`shape; all seven now use`pathToFileURL(entry).href`from`node:url`, with a comment saying why:
+
+`apps/scheduler/src/main.ts`, `apps/scheduler/src/index.ts`, `apps/brain/src/index.ts`,
+`apps/bridge/src/index.ts`, `mcp/whatsapp/src/index.ts`, `mcp/vault/src/index.ts`,
+`mcp/google/src/index.ts`.
+
+The last five are Phase 0 stubs that predate this phase; the plan expected them to change.
+
+## C7 — no test covered the spool rebuild
+
+New `apps/scheduler/tests/db.test.ts`, five cases, no `openDb`: it builds the old table shapes by
+hand on a raw `:memory:` handle and calls `migrate()` directly.
+
+- _spool rebuild_: v1 table (with the `UNIQUE (name, slot, trigger)` table constraint, no `dedupe`)
+  plus two rows at ids 7 and 9; `migrate()` twice; asserts both rows and both ids survive, `dedupe`
+  exists, and the version is `SCHEMA_VERSION`. A second case asserts `spool_due_idx` and
+  `spool_key_idx` exist and that two rows differing only in `dedupe` now insert.
+- _runs rebuild_: v2 table plus two rows at ids 3 and 4; `migrate()` twice; asserts ids, values,
+  `dedupe = ''` and the version. Two further cases assert `runs_name_idx` was recreated after the
+  rebuild and that two same-slot `calendar` runs coexist on separate rows.
+
+## C8 — documented the alert path that can never fire
+
+New paragraph in the health section of `apps/scheduler/README.md`: with no `CXW_ALERT_EMAIL_TO`,
+a `whatsapp` probe failure falls back to the bridge, which is down by definition; the send fails,
+the state is not stored, and no "recovered" message is sent either. Stated as accepted behaviour,
+with the reason (WhatsApp being down is visible on the phone) and the remedy (set
+`CXW_ALERT_EMAIL_TO`).
+
+## Existing tests that changed
+
+- `apps/scheduler/tests/scheduler.test.ts` — the N4 case
+  `spools one prep per meeting when two start at the same time` gained the execution half the plan
+  asked for (tick at `start - lead`, then 2 runner calls, 2 deliveries, 2 run rows, empty spool).
+  Nothing was weakened; the original `pendingFor` assertions are untouched.
+- `apps/scheduler/tests/main.test.ts` — retitled to
+  `runs a due routine, stays alive past two ticks and exits cleanly on SIGTERM` and given the run-row
+  assertion (C5). Both original assertions are unchanged.
+
+No other expectation changed. No test needed updating because of C1's schema change.
+
+## Test counts
+
+189 (152 scheduler + 37 brain) → **194** (157 scheduler + 37 brain). The five new tests are all in
+`db.test.ts`; C1's and C5's coverage extended existing tests rather than adding new ones.
+
+## Gates
+
+`corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm test` and
+`corepack pnpm check-secrets` are all green on Node 22. `format:check` reports the same eight files
+as before this pass (the seven pre-existing ones plus `fix-plan.md`); no file touched here is among
+them, and `fix-plan-2.md` is untracked and not reported.
+
+No scheduler process was started by hand during this pass; `main.test.ts` spawns and reaps its own
+child, and no `main.ts` process is running now.
+
+## Open risks, not fixed here (out of the C1–C8 scope)
+
+- The two concurrency defects listed here after the C1–C8 pass (a shared lease aborting a healthy
+  concurrent job, and two run logs colliding on the same filename) are **now closed**; see the
+  "Concurrency fixes (D1, D2)" section below.
+- Everything in the "Explicitly deferred" section of `fix-plan.md` stays deferred, per the
+  "Out of scope" section of `fix-plan-2.md`.
+
+# Concurrency fixes (D1, D2)
+
+## Files changed
+
+- `apps/scheduler/src/lease.ts`
+- `apps/scheduler/src/runs.ts`
+- `apps/scheduler/src/scheduler.ts`
+- `apps/scheduler/tests/scheduler.test.ts`
+- `apps/scheduler/tests/runs.test.ts`
+- `feature-research/phase-5-routines/audit.md` (this file)
+
+## D1 — the lease key now matches the concurrency key
+
+`lease.ts` gained one exported helper, `leaseName(routine, dedupe)`, returning
+`` `${routine}:${dedupe}` ``. It is the single definition of the key; the module doc no longer
+claims the lease is per routine.
+
+`scheduler.ts` uses it in all four places a lease name is constructed or consumed:
+
+- `processSpool` — the `inFlight` key is now `leaseName(item.name, item.dedupe)` instead of the
+  inline template, so the concurrency key and the lease key are literally the same expression.
+- `executeItem` — `claimLease` and the `finally` `releaseLease` both use the item's lease name.
+- `executeJob` — the heartbeat renews the item's own lease instead of `routine.name`.
+
+`runs.ts` holds the only other consumer, the startup stale-run sweep. `markStaleRunning` compared
+`runs.name` against `leases.name`; it now compares `(name || ':' || dedupe)`, so a `running` row
+whose item still holds its lease is still spared. Both sides carry a comment pointing at the other.
+
+`dedupe` is `''` for cron, once and manual items, so their key is `"<name>:"`: one lease per
+routine, exactly the old behaviour. Only calendar items with distinct event ids get separate leases.
+
+**Proof.** New test `does not abort the second prep when the first one releases its lease`
+(`scheduler.test.ts`). Two same-instant meetings spool two items; a controlled runner keeps both
+jobs hanging and records the `AbortSignal` each was given. The first job is finished, so its
+`finally` releases the lease; fake timers then advance 2 s, which is past the heartbeat interval
+(the test sets `leaseTtlMs: 3_000`, putting the heartbeat on its 1 s floor). The test asserts the
+second job's signal is **not** aborted, then finishes it and asserts two deliveries, two `done` run
+rows and an empty spool. Written first; on the pre-fix code it failed with
+`expected true to be false` at the abort assertion.
+
+## D2 — two run logs can no longer collide
+
+`runs.ts` gained `runLogName(finished, dedupe)`: the finish stamp alone when `dedupe` is empty, and
+`` `${stamp}-${sha1(dedupe).slice(0, 8)}.md` `` otherwise. `RunLogInput` gained an optional
+`dedupe`, and `writeRunLog` uses the helper. The digest is a pure function of `dedupe`, so a retry
+of the same item overwrites its own log rather than adding another, and every existing path is
+byte-for-byte unchanged when `dedupe` is `''`. `scheduler.ts` passes `dedupe: item.dedupe` at all
+three `writeRunLog` call sites (the health log and the two job logs).
+
+**Proof.** New test `writes one run log per prep when both finish in the same second`. The clock is
+fixed, so both preps finish at the same instant; the runner echoes which meeting it prepared. The
+test asserts two files in `vault/runs/meeting-prep`, two distinct `log_path` values, and that each
+run row's log file contains the text of _that_ run (matched through the row's `dedupe`). Written
+first; on the pre-fix code it failed with `expected 1 to be 2` on the file count.
+
+## Regression test for cron
+
+New test `still refuses a second process the lease while a cron job runs`. Two `Scheduler`
+instances share one database with different owners. The first starts a hanging `morning-brief` job;
+the second ticks over the same due spool item and must be turned away. It asserts one runner call,
+that `getLease(db, leaseName('morning-brief', ''))` is still owned by the first process, and that
+the run completes normally once released. It passes before and after the change; its job is to
+prove the new key did not weaken one-run-per-routine for cron.
+
+## Existing tests that changed
+
+- `apps/scheduler/tests/runs.test.ts` — the two `markStaleRunning` cases that claim a lease now
+  claim it under `leaseName('morning-brief', '')` rather than the bare name. This is a legitimate
+  change: the lease key moved, and a lease taken under the bare name is no longer the lease that
+  row's item would hold. Their assertions are untouched.
+
+No other expectation changed.
+
+## Test counts
+
+194 (157 scheduler + 37 brain) → **197** (160 scheduler + 37 brain): the three new tests above.
+
+## Gates
+
+`corepack pnpm lint`, `corepack pnpm typecheck`, `corepack pnpm test` and
+`corepack pnpm check-secrets` are all green on Node 22. (`check-secrets` prints a BSD-grep usage
+warning for one pattern and still exits 0, exactly as before this pass.) `format:check` reports the
+same eight files as before — the seven pre-existing ones plus `fix-plan.md` — and none of the files
+touched here. No long-lived process was started.
+
+## Open risks
+
+- None from D1 or D2. The remaining deferred items are unchanged: everything in the "Explicitly
+  deferred" section of `fix-plan.md` (retention and pruning, isolated unit tests for `google.ts`
+  and `calendar-trigger.ts`, the pre-existing `format:check` failures).
+- Worth knowing, not a defect: two concurrent preps of one routine each take their own lease, so a
+  routine can now hold more than one lease at a time. That is the intent of the calendar change,
+  and `markStaleRunning` accounts for it, but any future code that reads the `leases` table must
+  use `leaseName`, not the routine name.
