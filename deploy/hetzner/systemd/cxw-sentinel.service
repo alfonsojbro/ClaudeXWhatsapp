@@ -1,22 +1,26 @@
 [Unit]
-Description=ClaudeXWhatsapp health monitor (no LLM)
-After=network-online.target
+Description=ClaudeXWhatsapp kill-switch sentinel (panic/resume, no LLM)
+After=network-online.target cxw-bridge.service
 Wants=network-online.target
+StartLimitIntervalSec=300
+StartLimitBurst=10
 
 [Service]
-Type=oneshot
+Type=simple
 User=cxw
 Group=cxw
 WorkingDirectory=/srv/cxw/repo
 EnvironmentFile=/srv/cxw/cxw.env
-EnvironmentFile=-/srv/cxw/google.env
 Environment=NODE_ENV=production
 Environment=HOME=/home/cxw
-ExecStart=/srv/cxw/repo/deploy/hetzner/monitor.sh
-TimeoutStartSec=300
+ExecStart=/usr/local/bin/cxw-ops sentinel
+Restart=always
+RestartSec=5
+KillSignal=SIGTERM
+TimeoutStopSec=30
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=cxw-monitor
+SyslogIdentifier=cxw-sentinel
 
 # hardening (NoNewPrivileges and RestrictSUIDSGID must stay false: this unit calls
 # `sudo -n /usr/local/bin/cxw-ctl`, and sudo needs setuid)
@@ -28,3 +32,6 @@ ProtectControlGroups=true
 RestrictSUIDSGID=false
 ReadWritePaths=/srv/cxw/data /srv/cxw/state /srv/cxw/repo /home/cxw
 UMask=0077
+
+[Install]
+WantedBy=multi-user.target

@@ -1,7 +1,6 @@
 [Unit]
-Description=ClaudeXWhatsapp health monitor (no LLM)
+Description=ClaudeXWhatsapp retention purge (third-party text and media)
 After=network-online.target
-Wants=network-online.target
 
 [Service]
 Type=oneshot
@@ -9,22 +8,25 @@ User=cxw
 Group=cxw
 WorkingDirectory=/srv/cxw/repo
 EnvironmentFile=/srv/cxw/cxw.env
-EnvironmentFile=-/srv/cxw/google.env
 Environment=NODE_ENV=production
 Environment=HOME=/home/cxw
-ExecStart=/srv/cxw/repo/deploy/hetzner/monitor.sh
-TimeoutStartSec=300
+ExecStart=/usr/local/bin/cxw-ops purge
+TimeoutStartSec=1800
+Nice=10
+IOSchedulingClass=idle
 StandardOutput=journal
 StandardError=journal
-SyslogIdentifier=cxw-monitor
+SyslogIdentifier=cxw-purge
 
-# hardening (NoNewPrivileges and RestrictSUIDSGID must stay false: this unit calls
-# `sudo -n /usr/local/bin/cxw-ctl`, and sudo needs setuid)
-NoNewPrivileges=false
+# hardening
+NoNewPrivileges=true
 PrivateTmp=true
 ProtectSystem=strict
 ProtectKernelTunables=true
 ProtectControlGroups=true
-RestrictSUIDSGID=false
+RestrictSUIDSGID=true
 ReadWritePaths=/srv/cxw/data /srv/cxw/state /srv/cxw/repo /home/cxw
 UMask=0077
+
+[Install]
+WantedBy=multi-user.target

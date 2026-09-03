@@ -1,0 +1,76 @@
+#!/usr/bin/env bash
+# shellcheck shell=bash
+# cxw-ctl — the only privileged action the `cxw` user may take, via sudoers NOPASSWD.
+# Strict allowlist: anything not matched exactly is denied with exit 64 and logged.
+#
+# Usage:
+#   cxw-ctl <start|stop|restart|status|is-active> <bridge|brain|scheduler|sentinel|backup|monitor.timer|purge.timer|backup.timer>
+#   cxw-ctl backup            # systemctl start cxw-backup.service
+#   cxw-ctl vacuum-journal    # journalctl --vacuum-size=200M
+#
+# Install: /usr/local/bin/cxw-ctl, 0755 root:root, with deploy/hetzner/sudoers.d/cxw-ctl.
+set -euo pipefail
+
+# A sudo helper must not inherit a caller-chosen PATH, and must never open a pager:
+# `less` offers `!command` and `v`, which is a root shell escape.
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+export SYSTEMD_PAGER=cat
+export SYSTEMD_PAGERSECURE=1
+
+deny() {
+  if command -v logger >/dev/null 2>&1; then
+    logger -t cxw-ctl "denied: $*"
+  fi
+  echo "cxw-ctl: denied: $*" >&2
+  exit 64
+}
+
+# The SYSTEMCTL/JOURNALCTL overrides exist for deploy/hetzner/test/cxw-ctl.test.sh only.
+# They are honoured only when the caller is BOTH in test mode AND not root, so a `cxw`
+# process that somehow gets CXW_CTL_TEST through sudo cannot make the root run exec an
+# arbitrary binary. The sudoers file adds env_reset for the same reason.
+if [ "${CXW_CTL_TEST:-0}" = "1" ] && [ "$(id -u)" -ne 0 ]; then
+  SYSTEMCTL="${SYSTEMCTL:-/usr/bin/systemctl}"
+  JOURNALCTL="${JOURNALCTL:-/usr/bin/journalctl}"
+else
+  SYSTEMCTL=/usr/bin/systemctl
+  JOURNALCTL=/usr/bin/journalctl
+  if [ "$(id -u)" -ne 0 ]; then
+    echo "cxw-ctl: must run as root (use: sudo -n cxw-ctl ...)" >&2
+    exit 77
+  fi
+fi
+
+if [ "$#" -gt 2 ]; then
+  deny "$@"
+fi
+
+action="${1:-}"
+unit="${2:-}"
+
+case "$action" in
+  start | stop | restart | status | is-active)
+    case "$unit" in
+      bridge | brain | scheduler | sentinel | backup | monitor.timer | purge.timer | backup.timer)
+        if [ "$action" = "status" ]; then
+          exec "$SYSTEMCTL" status --no-pager --lines=20 "cxw-$unit"
+        fi
+        exec "$SYSTEMCTL" "$action" "cxw-$unit"
+        ;;
+      *)
+        deny "$@"
+        ;;
+    esac
+    ;;
+  backup)
+    if [ -n "$unit" ]; then deny "$@"; fi
+    exec "$SYSTEMCTL" start cxw-backup.service
+    ;;
+  vacuum-journal)
+    if [ -n "$unit" ]; then deny "$@"; fi
+    exec "$JOURNALCTL" --no-pager --vacuum-size=200M
+    ;;
+  *)
+    deny "$@"
+    ;;
+esac
