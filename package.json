@@ -12,7 +12,8 @@
   "scripts": {
     "prepare": "git config core.hooksPath .githooks || true",
     "typecheck": "pnpm -r typecheck",
-    "test": "pnpm -r test",
+    "test": "pnpm -r test && pnpm run test:root",
+    "test:root": "vitest run --passWithNoTests",
     "build": "pnpm -r build",
     "lint": "eslint .",
     "format": "prettier --write .",
