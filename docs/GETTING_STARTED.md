@@ -106,11 +106,8 @@ pnpm test
 cp .env.example .env
 ```
 
-11. Make the paths in `.env` absolute. The apps run inside sub-folders, so relative paths break:
-
-```bash
-perl -pi -e "s#=\./#=$PWD/#" .env
-```
+11. Keep the paths in `.env` relative. The apps resolve `./data` and `./config/owners.json`
+    against the repo folder, whatever folder the command runs from.
 
 12. Generate the bridge token. It guards the local API. **Lands with phase 1.**
 
@@ -127,12 +124,8 @@ cp config/owners.example.json config/owners.json
 14. Open `config/owners.json`. Replace `420123456789` with your own WhatsApp number.
     Use the country code and digits only. No `+`, no spaces. Example: `420777123456`.
 
-15. Load `.env` into your shell. The apps read variables from the shell, not from the file.
-    Repeat this in every new terminal:
-
-```bash
-set -a; source .env; set +a
-```
+15. Nothing to load. `pnpm pair` and `pnpm bridge` read `.env` from the repo folder by themselves.
+    A variable already set in your shell wins over the file.
 
 ### 3.4 Pair WhatsApp
 
@@ -216,7 +209,13 @@ BRAIN_INBOUND_URL=http://127.0.0.1:7802/inbound
 ECHO_MODE=0
 ```
 
-31. Reload the shell variables (step 15). Start the bridge in terminal 1 (step 20). Start the brain in terminal 2:
+31. The brain does not read `.env` yet. Load it into the shell of terminal 2:
+
+```bash
+set -a; source .env; set +a
+```
+
+    Start the bridge in terminal 1 (step 20). Start the brain in terminal 2:
 
 ```bash
 pnpm brain
@@ -706,8 +705,8 @@ Start with `docs/RUNBOOK.md`. The box section numbers below are on `main` today.
 | Backup fails or the timer is inactive | Runbook §5: Storage Box key, `/root/.ssh/config`, `restic.env` |
 | You need old data back | Runbook §5, "Test a restore" |
 | You want logs | Runbook §6: `journalctl -u cxw-brain -f`, same for `cxw-bridge` and `cxw-scheduler` |
-| `pnpm pair` says `BRIDGE_TOKEN: Invalid input` | Step 12 or step 15 of this guide was skipped |
-| `pnpm bridge` says `cannot read owners file` | Step 11 was skipped: the path is relative |
+| `pnpm pair` says `BRIDGE_TOKEN: Invalid input` | Step 12 was skipped, or `.env` is not in the repo folder (step 10) |
+| `pnpm bridge` says `cannot read owners file` | Step 13 was skipped, or `CXW_OWNERS_FILE` in `.env` points somewhere else |
 | The log says `whatsapp session logged out` | The phone dropped the link. Runbook §8.4 (phase 1): stop the bridge, delete `session/`, pair again |
 | `ping` gets no `pong` | Your number is not in `owners.json`, or you sent it from a group. Runbook §8.2 (phase 1) |
 | Gmail or Calendar stopped after a week | Section 4, step 37: the consent screen is still in Testing. Runbook Google section (phase 4) |
